@@ -35,11 +35,15 @@ target_link_libraries(ar_slam_app
         Threads::Threads
 )
 
-# Camera test
+# Camera test - THIS NEEDS rendering library too!
 add_executable(camera_test camera_test.cpp)
 target_link_libraries(camera_test
         slam_core
+        rendering  # ADD THIS LINE
         ${OpenCV_LIBS}
+        ${OPENGL_LIBRARIES}
+        GLEW::GLEW
+        glfw
         Threads::Threads
 )
 
