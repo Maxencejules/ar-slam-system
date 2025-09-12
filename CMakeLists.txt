@@ -19,15 +19,17 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
 # Find packages - OpenCV is REQUIRED now
 find_package(OpenCV REQUIRED)  # Changed from QUIET to REQUIRED
 find_package(Eigen3 QUIET)
-find_package(OpenGL QUIET)
-find_package(GLEW QUIET)
-find_package(glfw3 QUIET)
+find_package(OpenGL REQUIRED)
+find_package(GLEW REQUIRED)
+find_package(glfw3 REQUIRED)
 find_package(Threads REQUIRED)
 
 # Include directories
 include_directories(
         ${PROJECT_SOURCE_DIR}/include
-        ${OpenCV_INCLUDE_DIRS}  # Always include OpenCV
+        ${OpenCV_INCLUDE_DIRS}
+        ${OPENGL_INCLUDE_DIRS}
+        ${GLEW_INCLUDE_DIRS}
 )
 
 # Status messages
