@@ -19,21 +19,24 @@ namespace ar_slam {
         }
 
         ~MemoryPool() {
+            // Don't delete items here - user is responsible for calling destructors
             for (auto* item : allocated_items_) {
-                delete item;
+                ::operator delete(item);  // Just free memory, don't call destructor
             }
         }
 
         T* allocate() {
-            T* new_item = new T();
-            allocated_items_.push_back(new_item);
-            return new_item;
+            // Allocate memory without constructing
+            void* mem = ::operator new(sizeof(T));
+            T* ptr = static_cast<T*>(mem);
+            allocated_items_.push_back(ptr);
+            return ptr;
         }
 
         void deallocate(T* ptr) {
             auto it = std::find(allocated_items_.begin(), allocated_items_.end(), ptr);
             if (it != allocated_items_.end()) {
-                delete *it;
+                ::operator delete(ptr);  // Just free memory
                 allocated_items_.erase(it);
             }
         }
