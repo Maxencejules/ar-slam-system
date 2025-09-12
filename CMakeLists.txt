@@ -16,8 +16,8 @@ set(CMAKE_CXX_FLAGS "-Wall -Wextra -pthread")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
 
-# Find packages (make them optional for now)
-find_package(OpenCV QUIET)
+# Find packages - OpenCV is REQUIRED now
+find_package(OpenCV REQUIRED)  # Changed from QUIET to REQUIRED
 find_package(Eigen3 QUIET)
 find_package(OpenGL QUIET)
 find_package(GLEW QUIET)
@@ -27,15 +27,13 @@ find_package(Threads REQUIRED)
 # Include directories
 include_directories(
         ${PROJECT_SOURCE_DIR}/include
+        ${OpenCV_INCLUDE_DIRS}  # Always include OpenCV
 )
 
-# Add OpenCV if found
-if(OpenCV_FOUND)
-    include_directories(${OpenCV_INCLUDE_DIRS})
-    message(STATUS "OpenCV found: ${OpenCV_VERSION}")
-else()
-    message(WARNING "OpenCV not found. Some features will be disabled.")
-endif()
+# Status messages
+message(STATUS "OpenCV found: ${OpenCV_VERSION}")
+message(STATUS "OpenCV libraries: ${OpenCV_LIBS}")
+message(STATUS "OpenCV include dirs: ${OpenCV_INCLUDE_DIRS}")
 
 # Add Eigen3 if found
 if(Eigen3_FOUND)
