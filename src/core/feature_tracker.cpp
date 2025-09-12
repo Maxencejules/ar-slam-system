@@ -110,7 +110,7 @@ TrackingResult FeatureTracker::track_features(Frame::Ptr current_frame) {
             result.num_inliers = result.num_tracked;
             result.tracking_quality = 1.0f;
 
-            for (size_t i = 0; i < result.num_tracked; ++i) {
+            for (int i = 0; i < result.num_tracked; ++i) {
                 result.inliers.push_back(true);
             }
 

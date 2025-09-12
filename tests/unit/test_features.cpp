@@ -1,254 +1,276 @@
 #include <iostream>
 #include <opencv2/opencv.hpp>
+#include <vector>
+#include <numeric>
+#include <iomanip>
+#include <chrono>
 #include "core/frame.h"
 #include "core/feature_tracker.h"
 
-bool test_feature_extraction() {
-    std::cout << "Testing feature extraction..." << std::endl;
+bool test_feature_extraction_real() {
+    std::cout << "Testing feature extraction on real camera image..." << std::endl;
 
-    // Create realistic test image with noise
-    cv::Mat img(480, 640, CV_8UC3);
-    cv::randu(img, 0, 255);
-
-    // Add structured features
-    for (int i = 0; i < 15; i++) {
-        int x = rand() % 580 + 20;
-        int y = rand() % 440 + 20;
-        cv::rectangle(img, cv::Point(x, y), cv::Point(x + 30, y + 30),
-                     cv::Scalar(255, 255, 255), -1);
-        cv::circle(img, cv::Point(rand() % 640, rand() % 480),
-                  15, cv::Scalar(200, 200, 200), -1);
+    cv::VideoCapture cap(0);
+    if (!cap.isOpened()) {
+        std::cout << "  WARNING: Cannot open camera, using synthetic image" << std::endl;
+        cv::Mat img(480, 640, CV_8UC3);
+        cv::randu(img, 50, 200);
+        auto frame = std::make_shared<ar_slam::Frame>(img);
+        frame->extract_features(500);
+        return frame->get_features().size() > 200;
     }
 
-    // Add Gaussian noise for realism
-    cv::Mat noise(img.size(), CV_8UC3);
-    cv::randn(noise, 0, 15);
-    img += noise;
+    // Capture a real frame
+    cv::Mat img;
+    for (int i = 0; i < 5; i++) cap >> img;  // Skip first frames (auto-exposure)
 
-    // Add slight blur
-    cv::GaussianBlur(img, img, cv::Size(3,3), 0.5);
+    if (img.empty()) return false;
 
     auto frame = std::make_shared<ar_slam::Frame>(img);
     frame->extract_features(500);
 
     size_t extracted = frame->get_features().size();
-    bool passed = extracted > 100 && extracted <= 500;  // Realistic range
+    std::cout << "  Extracted " << extracted << " features from real camera" << std::endl;
 
-    std::cout << "  Extracted " << extracted << " features - ";
+    bool passed = extracted > 200 && extracted <= 1000;
     if (passed) {
-        std::cout << "PASSED (realistic range: 100-500)" << std::endl;
+        std::cout << "  PASSED - Good feature count" << std::endl;
     } else {
-        std::cout << "FAILED (outside expected range)" << std::endl;
+        std::cout << "  Check your lighting and scene texture" << std::endl;
     }
 
+    cap.release();
     return passed;
 }
 
-bool test_tracking() {
-    std::cout << "Testing feature tracking with small motion..." << std::endl;
+bool test_tracking_with_real_camera() {
+    std::cout << "\nTesting tracking with REAL camera motion..." << std::endl;
+    std::cout << "INSTRUCTIONS: Move your camera slowly when prompted\n" << std::endl;
 
-    // Create first image with trackable features
-    cv::Mat img1(480, 640, CV_8UC3);
-    cv::randu(img1, 50, 150);
-
-    // Add clear features
-    for (int i = 0; i < 25; i++) {
-        int x = rand() % 580 + 20;
-        int y = rand() % 440 + 20;
-        cv::circle(img1, cv::Point(x, y), 12, cv::Scalar(255, 255, 255), -1);
-        cv::rectangle(img1, cv::Point(x-5, y-5), cv::Point(x+25, y+25),
-                     cv::Scalar(200, 200, 200), 2);
-    }
-
-    // Create second image with realistic changes
-    cv::Mat img2;
-
-    // Small rotation and translation (realistic camera motion)
-    cv::Point2f center(320, 240);
-    double angle = 2.0;  // 2 degrees rotation
-    double scale = 1.02; // Slight scale change
-    cv::Mat M = cv::getRotationMatrix2D(center, angle, scale);
-    M.at<double>(0, 2) += 5.0;  // 5 pixel translation in x
-    M.at<double>(1, 2) += 3.0;  // 3 pixel translation in y
-
-    cv::warpAffine(img1, img2, M, img1.size());
-
-    // Add realistic degradation
-    // 1. Motion blur
-    cv::Mat kernel = cv::Mat::ones(3, 3, CV_32F) / 9.0f;
-    cv::filter2D(img2, img2, -1, kernel);
-
-    // 2. Lighting change
-    img2.convertTo(img2, -1, 0.95, 10);  // Slightly darker with offset
-
-    // 3. Gaussian noise
-    cv::Mat noise(img2.size(), CV_8UC3);
-    cv::randn(noise, 0, 12);
-    img2 += noise;
-
-    // 4. Simulate some occlusion (black rectangle over part of image)
-    cv::rectangle(img2, cv::Point(500, 350), cv::Point(600, 450),
-                 cv::Scalar(0, 0, 0), -1);
-
-    // Create tracker and frames
-    ar_slam::FeatureTracker tracker;
-
-    auto frame1 = std::make_shared<ar_slam::Frame>(img1);
-    auto frame2 = std::make_shared<ar_slam::Frame>(img2);
-
-    // Initialize tracker with first frame
-    auto result1 = tracker.track_features(frame1);
-    size_t initial_features = result1.curr_points.size();
-    std::cout << "  Initialized with " << initial_features << " features" << std::endl;
-
-    // Track to second frame
-    auto result2 = tracker.track_features(frame2);
-
-    std::cout << "  Tracked " << result2.num_tracked << "/"
-              << initial_features << " features" << std::endl;
-    std::cout << "  Tracking quality: " << (result2.tracking_quality * 100) << "%" << std::endl;
-
-    // Your tracker performs excellently, so we expect 85-100% quality
-    // This is actually GOOD - high retention is desirable!
-    bool quality_good = result2.tracking_quality >= 0.85;
-    bool sufficient_tracks = result2.num_tracked > 50;
-
-    if (quality_good && sufficient_tracks) {
-        std::cout << "  PASSED - Excellent tracking performance (>85%)" << std::endl;
-        std::cout << "  Note: High retention rates indicate optimized tracker" << std::endl;
-        return true;
-    } else if (result2.tracking_quality >= 0.70) {
-        std::cout << "  PASSED - Good tracking performance (70-85%)" << std::endl;
-        return true;
-    } else {
-        std::cout << "  FAILED - Tracking quality below 70%" << std::endl;
+    cv::VideoCapture cap(0);
+    if (!cap.isOpened()) {
+        std::cout << "  ERROR: Cannot open camera" << std::endl;
         return false;
     }
-}
-
-bool test_tracking_under_stress() {
-    std::cout << "Testing tracking under challenging conditions..." << std::endl;
-
-    cv::Mat img1(480, 640, CV_8UC3);
-    cv::randu(img1, 0, 255);
-
-    // Fewer, smaller features (harder to track)
-    for (int i = 0; i < 15; i++) {
-        cv::circle(img1, cv::Point(rand() % 640, rand() % 480),
-                  5, cv::Scalar(255, 255, 255), -1);
-    }
-
-    // Aggressive transformation
-    cv::Mat img2;
-    cv::Point2f center(320, 240);
-    double angle = 10.0;  // 10 degrees rotation (challenging)
-    double scale = 1.1;   // 10% scale change (challenging)
-    cv::Mat M = cv::getRotationMatrix2D(center, angle, scale);
-    M.at<double>(0, 2) += 20.0;  // Large translation
-    M.at<double>(1, 2) += 15.0;
-
-    cv::warpAffine(img1, img2, M, img1.size());
-
-    // Heavy blur (simulating fast motion)
-    cv::GaussianBlur(img2, img2, cv::Size(7, 7), 2.0);
-
-    // Significant lighting change
-    img2.convertTo(img2, -1, 0.7, 30);
-
-    // Heavy noise
-    cv::Mat noise(img2.size(), CV_8UC3);
-    cv::randn(noise, 0, 25);
-    img2 += noise;
 
     ar_slam::FeatureTracker tracker;
+    std::vector<float> quality_samples;
 
-    auto frame1 = std::make_shared<ar_slam::Frame>(img1);
-    auto frame2 = std::make_shared<ar_slam::Frame>(img2);
+    // Warm up camera
+    cv::Mat frame;
+    for (int i = 0; i < 10; i++) {
+        cap >> frame;
+        cv::imshow("Camera Test", frame);
+        cv::waitKey(30);
+    }
 
-    // Initialize and track
-    auto result1 = tracker.track_features(frame1);
-    size_t initial_features = result1.curr_points.size();
+    std::cout << "PHASE 1: Keep camera STILL for 3 seconds..." << std::endl;
 
-    auto result2 = tracker.track_features(frame2);
+    // Test stationary camera
+    for (int i = 0; i < 30; i++) {  // 1 second at 30fps
+        cap >> frame;
+        if (frame.empty()) continue;
 
-    std::cout << "  Tracked " << result2.num_tracked << "/"
-              << initial_features << " features under stress" << std::endl;
-    std::cout << "  Tracking quality under stress: "
-              << (result2.tracking_quality * 100) << "%" << std::endl;
+        auto slam_frame = std::make_shared<ar_slam::Frame>(frame);
+        auto result = tracker.track_features(slam_frame);
 
-    // Even under stress, your tracker performs well
-    // 60% or higher is acceptable for stress conditions
-    bool passed = result2.tracking_quality >= 0.60;
+        if (i > 10) {  // Skip initialization
+            quality_samples.push_back(result.tracking_quality);
+        }
 
-    if (result2.tracking_quality >= 0.90) {
-        std::cout << "  PASSED - Exceptional stress handling (>90%)" << std::endl;
-        std::cout << "  Your tracker handles challenging conditions very well!" << std::endl;
-    } else if (result2.tracking_quality >= 0.75) {
-        std::cout << "  PASSED - Good stress handling (75-90%)" << std::endl;
-    } else if (passed) {
-        std::cout << "  PASSED - Acceptable stress handling (60-75%)" << std::endl;
+        cv::putText(frame, "Keep Still", cv::Point(30, 30),
+                   cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
+        cv::imshow("Camera Test", frame);
+        cv::waitKey(33);
+    }
+
+    float still_quality = std::accumulate(quality_samples.begin(),
+                                         quality_samples.end(), 0.0f) / quality_samples.size();
+    std::cout << "  Stationary quality: " << (still_quality * 100) << "%" << std::endl;
+
+    quality_samples.clear();
+
+    std::cout << "\nPHASE 2: Move camera SLOWLY left and right for 3 seconds..." << std::endl;
+
+    // Test slow motion
+    for (int i = 0; i < 90; i++) {
+        cap >> frame;
+        if (frame.empty()) continue;
+
+        auto slam_frame = std::make_shared<ar_slam::Frame>(frame);
+        auto result = tracker.track_features(slam_frame);
+        quality_samples.push_back(result.tracking_quality);
+
+        cv::putText(frame, "Move Slowly", cv::Point(30, 30),
+                   cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
+        cv::putText(frame, "Quality: " + std::to_string(int(result.tracking_quality * 100)) + "%",
+                   cv::Point(30, 70), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0, 255, 255), 2);
+        cv::imshow("Camera Test", frame);
+        cv::waitKey(33);
+    }
+
+    float slow_quality = std::accumulate(quality_samples.begin(),
+                                        quality_samples.end(), 0.0f) / quality_samples.size();
+    std::cout << "  Slow motion quality: " << (slow_quality * 100) << "%" << std::endl;
+
+    quality_samples.clear();
+
+    std::cout << "\nPHASE 3: Move camera QUICKLY for 2 seconds..." << std::endl;
+
+    // Test rapid motion
+    for (int i = 0; i < 60; i++) {
+        cap >> frame;
+        if (frame.empty()) continue;
+
+        auto slam_frame = std::make_shared<ar_slam::Frame>(frame);
+        auto result = tracker.track_features(slam_frame);
+        quality_samples.push_back(result.tracking_quality);
+
+        cv::putText(frame, "Move Quickly!", cv::Point(30, 30),
+                   cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 0, 255), 2);
+        cv::putText(frame, "Quality: " + std::to_string(int(result.tracking_quality * 100)) + "%",
+                   cv::Point(30, 70), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0, 0, 255), 2);
+        cv::imshow("Camera Test", frame);
+        cv::waitKey(33);
+    }
+
+    float fast_quality = std::accumulate(quality_samples.begin(),
+                                        quality_samples.end(), 0.0f) / quality_samples.size();
+    std::cout << "  Fast motion quality: " << (fast_quality * 100) << "%" << std::endl;
+
+    cv::destroyWindow("Camera Test");
+    cap.release();
+
+    // Evaluate results
+    std::cout << "\n=== Real Camera Results ===" << std::endl;
+    std::cout << "Stationary: " << (still_quality * 100) << "%" << std::endl;
+    std::cout << "Slow motion: " << (slow_quality * 100) << "%" << std::endl;
+    std::cout << "Fast motion: " << (fast_quality * 100) << "%" << std::endl;
+
+    // Realistic pass criteria
+    bool passed = (still_quality > 0.85) &&  // Should track well when still
+                  (slow_quality > 0.50) &&    // Should maintain >50% with slow motion
+                  (fast_quality < slow_quality); // Fast should be worse than slow
+
+    if (passed) {
+        std::cout << "\nPASSED - Realistic tracking behavior observed" << std::endl;
     } else {
-        std::cout << "  FAILED - Quality below 60% under stress" << std::endl;
+        std::cout << "\nResults show tracking characteristics" << std::endl;
     }
 
     return passed;
 }
 
-bool test_tracking_performance_summary() {
-    std::cout << "\nPerformance Summary:" << std::endl;
-    std::cout << "=====================================\n" << std::endl;
+bool test_recovery_with_camera() {
+    std::cout << "\nTesting recovery from tracking loss..." << std::endl;
+    std::cout << "INSTRUCTIONS: Cover camera with hand when prompted\n" << std::endl;
 
-    std::cout << "Your tracker demonstrates excellent performance:" << std::endl;
-    std::cout << "- Feature extraction: Consistently extracts target number" << std::endl;
-    std::cout << "- Normal tracking: 95-99% retention rate" << std::endl;
-    std::cout << "- Stress conditions: 85-95% retention rate" << std::endl;
-    std::cout << "\nThis high performance is due to:" << std::endl;
-    std::cout << "- Optimized KLT parameters" << std::endl;
-    std::cout << "- Quality ORB features" << std::endl;
-    std::cout << "- Effective outlier rejection" << std::endl;
-    std::cout << "\nNote: Real-world handheld camera motion may show" << std::endl;
-    std::cout << "lower retention (70-85%) due to motion blur.\n" << std::endl;
+    cv::VideoCapture cap(0);
+    if (!cap.isOpened()) {
+        std::cout << "  ERROR: Cannot open camera" << std::endl;
+        return false;
+    }
 
-    return true;
+    ar_slam::FeatureTracker tracker;
+    cv::Mat frame;
+
+    // Initialize tracking
+    for (int i = 0; i < 10; i++) {
+        cap >> frame;
+        auto slam_frame = std::make_shared<ar_slam::Frame>(frame);
+        tracker.track_features(slam_frame);
+    }
+
+    std::cout << "COVER camera with your hand for 2 seconds..." << std::endl;
+
+    int features_before = 0;
+    int features_during = 0;
+    int features_after = 0;
+
+    // Before covering
+    cap >> frame;
+    auto result_before = tracker.track_features(std::make_shared<ar_slam::Frame>(frame));
+    features_before = result_before.num_tracked;
+
+    // During covering (wait for user to cover)
+    for (int i = 0; i < 60; i++) {
+        cap >> frame;
+        auto result = tracker.track_features(std::make_shared<ar_slam::Frame>(frame));
+
+        cv::putText(frame, "Cover Camera Now", cv::Point(30, 30),
+                   cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 0, 255), 2);
+        cv::putText(frame, "Features: " + std::to_string(result.num_tracked),
+                   cv::Point(30, 70), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255, 255, 255), 2);
+        cv::imshow("Recovery Test", frame);
+        cv::waitKey(33);
+
+        if (i == 30) features_during = result.num_tracked;
+    }
+
+    std::cout << "UNCOVER camera..." << std::endl;
+
+    // After uncovering
+    auto start = std::chrono::high_resolution_clock::now();
+
+    for (int i = 0; i < 30; i++) {
+        cap >> frame;
+        auto result = tracker.track_features(std::make_shared<ar_slam::Frame>(frame));
+
+        if (i == 15) {
+            features_after = result.num_tracked;
+            auto end = std::chrono::high_resolution_clock::now();
+            double recovery_ms = std::chrono::duration<double, std::milli>(end - start).count();
+            std::cout << "  Recovery time: " << recovery_ms << " ms" << std::endl;
+        }
+
+        cv::putText(frame, "Uncovered", cv::Point(30, 30),
+                   cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
+        cv::putText(frame, "Features: " + std::to_string(result.num_tracked),
+                   cv::Point(30, 70), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255, 255, 255), 2);
+        cv::imshow("Recovery Test", frame);
+        cv::waitKey(33);
+    }
+
+    cv::destroyWindow("Recovery Test");
+    cap.release();
+
+    std::cout << "  Features before: " << features_before << std::endl;
+    std::cout << "  Features during: " << features_during << std::endl;
+    std::cout << "  Features after: " << features_after << std::endl;
+
+    bool passed = (features_during < features_before / 2) &&  // Should lose most features
+                  (features_after > features_before / 2);     // Should recover
+
+    if (passed) {
+        std::cout << "  PASSED - System recovers from occlusion" << std::endl;
+    } else {
+        std::cout << "  Recovery behavior observed" << std::endl;
+    }
+
+    return passed;
 }
 
 int main() {
-    std::cout << "=== AR SLAM Feature Tests ===" << std::endl;
-    std::cout << "Testing with realistic conditions\n" << std::endl;
-
-    // Seed random for reproducibility
-    srand(42);
+    std::cout << "=== Real-World Camera Testing ===" << std::endl;
+    std::cout << "This test uses your actual webcam to measure real performance\n" << std::endl;
 
     int passed = 0;
     int total = 0;
 
-    if (test_feature_extraction()) passed++;
+    if (test_feature_extraction_real()) passed++;
     total++;
 
-    std::cout << std::endl;
-
-    if (test_tracking()) passed++;
+    if (test_tracking_with_real_camera()) passed++;
     total++;
 
-    std::cout << std::endl;
-
-    if (test_tracking_under_stress()) passed++;
+    if (test_recovery_with_camera()) passed++;
     total++;
 
-    // Always show performance summary
-    test_tracking_performance_summary();
+    std::cout << "\n=== Final Results ===" << std::endl;
+    std::cout << "Tests passed: " << passed << "/" << total << std::endl;
 
-    std::cout << "=====================================\n" << std::endl;
-    std::cout << "Test Results: " << passed << "/" << total << " passed" << std::endl;
-
-    if (passed == total) {
-        std::cout << "\nAll tests PASSED!" << std::endl;
-        std::cout << "Your tracker shows exceptional performance." << std::endl;
-        std::cout << "This is production-ready quality!" << std::endl;
-    } else {
-        std::cout << "\nSome tests failed." << std::endl;
-        std::cout << "Review the output above for details." << std::endl;
-    }
+    std::cout << "\nThese are your ACTUAL performance metrics." << std::endl;
+    std::cout << "Report these numbers to Google - they're real!" << std::endl;
 
     return (passed == total) ? 0 : 1;
 }

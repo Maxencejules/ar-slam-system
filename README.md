@@ -18,37 +18,17 @@ performance (46+ FPS) while tracking 1000+ features simultaneously with 3D visua
  
 ## Key Features 
  
-- **Real-time Performance**: 46+ FPS sustained with 1000+ tracked features 
+- **Real-time Performance**: 1000+ tracked features 
 - **3D Point Cloud Visualization**: OpenGL-based rendering with depth-based coloring 
-- **Robust Feature Tracking**: ORB feature detection with KLT optical flow 
-- **Memory Efficient**: Custom memory pool system maintaining <256MB footprint 
-- **Modern C++ Design**: C++17 with smart pointers, templates, and RAII principles 
-- **Comprehensive Testing**: Benchmark suite with performance metrics 
-- **Cross-platform Ready**: Designed for Linux with V4L2 camera interface structure 
- 
-## Performance Benchmarks 
- 
-### System Performance 
-- **Sustained FPS**: 46.17 (1000 frames @ 1080x1920 resolution) 
-- **Feature Extraction**: 461 features in 21.93ms 
-- **Feature Tracking**: 949 features with 100% quality retention 
-- **Memory Efficiency**: <256MB with near-instant allocation 
- 
-### Detailed Metrics 
- 
-| Component | Mean Latency | StdDev | Min | Max | FPS | 
-|-----------|-------------|--------|-----|-----|-----| 
-| Feature Initialization | 16.18ms | 4.02ms | 10.70ms | 27.65ms | 61.81 | 
-| Feature Tracking | 20.07ms | 5.20ms | 14.00ms | 34.06ms | 49.82 | 
-| Memory Allocation | 0.004ms | 0.001ms | 0.00ms | 0.01ms | 261,390 | 
-| Memory Deallocation | 0.001ms | 0.000ms | 0.00ms | 0.00ms | 2,690,920 | 
-| **Full Pipeline** | **21.66ms** | - | - | - | **46.17** | 
- 
-### Test Results 
-- All unit tests passing (2/2) 
-- 100% tracking quality maintained 
-- Memory pool verified to 100+ allocations 
-- 1000-frame stress test completed 
+- **Robust Feature Tracking**: ORB feature detection with KLT optical flow
+- **Modern C++ Design**: C++20 with smart pointers, templates, and RAII principles
+- **Cross-platform Ready**: Designed for Linux with V4L2 camera interface structure  
+- Real-time operation on standard hardware
+- Robust tracking with automatic recovery
+- Handles typical handheld camera motion
+- Automatic re-detection when tracking degrades
+- Memory-efficient design suitable for embedded systems
+
  
 ## System Architecture 
 ```
@@ -90,18 +70,6 @@ make -j$(nproc)
 
 # Run the main 3D tracking demo 
 ./src/camera_3d 
-```
- 
-### Running Tests 
-```bash
-# Run all tests 
-ctest --output-on-failure 
-
-# Or run individual tests 
-./tests/benchmark_slam      # Performance benchmarks 
-./tests/test_features       # Feature extraction tests 
-./tests/memory_test         # Memory pool tests 
-./tests/performance_test    # Stress test 
 ```
  
 ## Usage 
