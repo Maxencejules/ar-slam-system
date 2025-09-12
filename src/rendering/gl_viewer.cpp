@@ -1,10 +1,11 @@
 #include "rendering/gl_viewer.h"
 #include <iostream>
 #include <algorithm>
+#include <cmath>
 
 namespace ar_slam {
 
-// Vertex shader
+// Vertex shader source
 const char* vertex_shader_source = R"(
 #version 330 core
 layout (location = 0) in vec3 aPos;
@@ -22,7 +23,7 @@ void main() {
 }
 )";
 
-// Fragment shader
+// Fragment shader source
 const char* fragment_shader_source = R"(
 #version 330 core
 in vec3 vertexColor;
@@ -38,7 +39,9 @@ void main() {
 }
 )";
 
-GLViewer::GLViewer(const std::string& title) : window_(nullptr) {
+GLViewer::GLViewer(const std::string& title)
+    : window_(nullptr), window_title_(title) {
+    // Constructor just initializes members
 }
 
 GLViewer::~GLViewer() {
@@ -68,7 +71,8 @@ bool GLViewer::init_glfw() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    window_ = glfwCreateWindow(width_, height_, "AR SLAM 3D Viewer", nullptr, nullptr);
+    // Use the stored window title
+    window_ = glfwCreateWindow(width_, height_, window_title_.c_str(), nullptr, nullptr);
     if (!window_) {
         std::cerr << "Failed to create window" << std::endl;
         glfwTerminate();
@@ -113,7 +117,7 @@ GLuint GLViewer::compile_shaders() {
     glShaderSource(vertex_shader, 1, &vertex_shader_source, nullptr);
     glCompileShader(vertex_shader);
 
-    // Check compilation
+    // Check vertex shader compilation
     GLint success;
     glGetShaderiv(vertex_shader, GL_COMPILE_STATUS, &success);
     if (!success) {
@@ -128,6 +132,7 @@ GLuint GLViewer::compile_shaders() {
     glShaderSource(fragment_shader, 1, &fragment_shader_source, nullptr);
     glCompileShader(fragment_shader);
 
+    // Check fragment shader compilation
     glGetShaderiv(fragment_shader, GL_COMPILE_STATUS, &success);
     if (!success) {
         char infoLog[512];
@@ -136,12 +141,13 @@ GLuint GLViewer::compile_shaders() {
         return 0;
     }
 
-    // Link program
+    // Create and link shader program
     GLuint program = glCreateProgram();
     glAttachShader(program, vertex_shader);
     glAttachShader(program, fragment_shader);
     glLinkProgram(program);
 
+    // Check linking
     glGetProgramiv(program, GL_LINK_STATUS, &success);
     if (!success) {
         char infoLog[512];
@@ -150,6 +156,7 @@ GLuint GLViewer::compile_shaders() {
         return 0;
     }
 
+    // Clean up individual shaders
     glDeleteShader(vertex_shader);
     glDeleteShader(fragment_shader);
 
@@ -157,47 +164,73 @@ GLuint GLViewer::compile_shaders() {
 }
 
 void GLViewer::update_view_matrix() {
+    // Calculate eye position based on spherical coordinates
     glm::vec3 eye(
         camera_distance_ * sin(camera_angle_y_) * cos(camera_angle_x_),
         camera_distance_ * sin(camera_angle_x_),
         camera_distance_ * cos(camera_angle_y_) * cos(camera_angle_x_)
     );
 
-    view_matrix_ = glm::lookAt(eye, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    // Look at origin with Y-up
+    view_matrix_ = glm::lookAt(eye, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 }
 
 void GLViewer::update_points(const std::vector<cv::Point3f>& points) {
     points_.clear();
     colors_.clear();
 
+    if (points.empty()) return;
+
     // Find min/max Z for color mapping
-    float min_z = 100.0f, max_z = -100.0f;
+    float min_z = points[0].z;
+    float max_z = points[0].z;
+
     for (const auto& p : points) {
         min_z = std::min(min_z, p.z);
         max_z = std::max(max_z, p.z);
     }
-    float z_range = max_z - min_z + 0.001f;  // Avoid division by zero
 
+    float z_range = max_z - min_z;
+    if (z_range < 0.001f) z_range = 1.0f;  // Avoid division by zero
+
+    // Convert points and assign colors based on depth
     for (const auto& p : points) {
         points_.push_back(glm::vec3(p.x, p.y, p.z));
 
-        // Color based on depth: close=red, mid=green, far=blue
+        // Color gradient: near (red) -> mid (green) -> far (blue)
         float t = (p.z - min_z) / z_range;
 
+        glm::vec3 color;
         if (t < 0.5f) {
-            // Red to Green
+            // Red to Green transition
             float s = t * 2.0f;
-            colors_.push_back(glm::vec3(1.0f - s, s, 0.0f));
+            color = glm::vec3(1.0f - s, s, 0.0f);
         } else {
-            // Green to Blue
+            // Green to Blue transition
             float s = (t - 0.5f) * 2.0f;
-            colors_.push_back(glm::vec3(0.0f, 1.0f - s, s));
+            color = glm::vec3(0.0f, 1.0f - s, s);
         }
+        colors_.push_back(color);
+    }
+}
+
+void GLViewer::update_points_with_colors(const std::vector<cv::Point3f>& points,
+                                         const std::vector<cv::Vec3b>& colors) {
+    points_.clear();
+    colors_.clear();
+
+    size_t num_points = std::min(points.size(), colors.size());
+
+    for (size_t i = 0; i < num_points; ++i) {
+        points_.push_back(glm::vec3(points[i].x, points[i].y, points[i].z));
+        colors_.push_back(glm::vec3(colors[i][2] / 255.0f,  // BGR to RGB
+                                    colors[i][1] / 255.0f,
+                                    colors[i][0] / 255.0f));
     }
 }
 
 void GLViewer::process_input() {
-    // Camera rotation
+    // Camera rotation with arrow keys
     if (glfwGetKey(window_, GLFW_KEY_LEFT) == GLFW_PRESS)
         camera_angle_y_ -= 0.02f;
     if (glfwGetKey(window_, GLFW_KEY_RIGHT) == GLFW_PRESS)
@@ -208,8 +241,7 @@ void GLViewer::process_input() {
         camera_distance_ += 0.1f;
 
     // Clamp camera distance
-    if (camera_distance_ < 1.0f) camera_distance_ = 1.0f;
-    if (camera_distance_ > 20.0f) camera_distance_ = 20.0f;
+    camera_distance_ = std::max(1.0f, std::min(camera_distance_, 20.0f));
 
     // Exit on ESC
     if (glfwGetKey(window_, GLFW_KEY_ESCAPE) == GLFW_PRESS)
@@ -217,17 +249,7 @@ void GLViewer::process_input() {
 }
 
 void GLViewer::draw_axes() {
-    // Draw coordinate axes using lines
-    // This is a simplified version - in production you'd use a separate shader
-
-    // Store current point size
-    GLfloat pointSize;
-    glGetFloatv(GL_POINT_SIZE, &pointSize);
-
-    // Draw thicker lines for axes
-    glLineWidth(3.0f);
-
-    // We'll add 6 points for the axes (2 per axis)
+    // Prepare axis vertices and colors
     std::vector<glm::vec3> axis_points = {
         glm::vec3(0, 0, 0), glm::vec3(1, 0, 0),  // X axis
         glm::vec3(0, 0, 0), glm::vec3(0, 1, 0),  // Y axis
@@ -240,75 +262,84 @@ void GLViewer::draw_axes() {
         glm::vec3(0, 0, 1), glm::vec3(0, 0, 1)   // Blue for Z
     };
 
-    // Draw axes
+    // Set line width for axes
+    glLineWidth(3.0f);
+
+    // Bind VAO and update buffers
     glBindVertexArray(vao_);
 
+    // Update vertex positions
     glBindBuffer(GL_ARRAY_BUFFER, vbo_points_);
     glBufferData(GL_ARRAY_BUFFER, axis_points.size() * sizeof(glm::vec3),
                 axis_points.data(), GL_DYNAMIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
     glEnableVertexAttribArray(0);
 
+    // Update vertex colors
     glBindBuffer(GL_ARRAY_BUFFER, vbo_colors_);
     glBufferData(GL_ARRAY_BUFFER, axis_colors.size() * sizeof(glm::vec3),
                 axis_colors.data(), GL_DYNAMIC_DRAW);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
     glEnableVertexAttribArray(1);
 
+    // Draw the axes
     glDrawArrays(GL_LINES, 0, 6);
 
     glBindVertexArray(0);
 
-    // Restore line width
+    // Reset line width
     glLineWidth(1.0f);
 }
 
 bool GLViewer::render() {
     if (glfwWindowShouldClose(window_)) return false;
 
-    // Process input
+    // Process keyboard input
     process_input();
+
+    // Update camera view matrix
     update_view_matrix();
 
-    // Clear
+    // Clear buffers
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // Use shader
+    // Activate shader program
     glUseProgram(shader_program_);
 
-    // Set uniforms
+    // Set transformation matrices
     GLuint view_loc = glGetUniformLocation(shader_program_, "view");
     GLuint proj_loc = glGetUniformLocation(shader_program_, "projection");
     glUniformMatrix4fv(view_loc, 1, GL_FALSE, &view_matrix_[0][0]);
     glUniformMatrix4fv(proj_loc, 1, GL_FALSE, &projection_matrix_[0][0]);
 
-    // Draw coordinate axes first
+    // Draw coordinate axes
     draw_axes();
 
-    // Draw points if we have any
+    // Draw point cloud if available
     if (!points_.empty()) {
         glBindVertexArray(vao_);
 
-        // Update point buffer
+        // Update vertex positions
         glBindBuffer(GL_ARRAY_BUFFER, vbo_points_);
         glBufferData(GL_ARRAY_BUFFER, points_.size() * sizeof(glm::vec3),
                     points_.data(), GL_DYNAMIC_DRAW);
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
         glEnableVertexAttribArray(0);
 
-        // Update color buffer
+        // Update vertex colors
         glBindBuffer(GL_ARRAY_BUFFER, vbo_colors_);
         glBufferData(GL_ARRAY_BUFFER, colors_.size() * sizeof(glm::vec3),
                     colors_.data(), GL_DYNAMIC_DRAW);
         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
         glEnableVertexAttribArray(1);
 
-        // Draw
+        // Draw points
         glDrawArrays(GL_POINTS, 0, points_.size());
 
         glBindVertexArray(0);
     }
 
+    // Swap buffers and poll events
     glfwSwapBuffers(window_);
     glfwPollEvents();
 
@@ -320,21 +351,53 @@ bool GLViewer::should_close() const {
 }
 
 void GLViewer::set_title(const std::string& title) {
+    window_title_ = title;
     if (window_) {
-        glfwSetWindowTitle(window_, title.c_str());
+        glfwSetWindowTitle(window_, window_title_.c_str());
     }
 }
 
-void GLViewer::cleanup() {
-    if (shader_program_) glDeleteProgram(shader_program_);
-    if (vao_) glDeleteVertexArrays(1, &vao_);
-    if (vbo_points_) glDeleteBuffers(1, &vbo_points_);
-    if (vbo_colors_) glDeleteBuffers(1, &vbo_colors_);
+void GLViewer::mouse_callback(double xpos, double ypos) {
+    // Suppress unused parameter warnings
+    (void)xpos;
+    (void)ypos;
+    // TODO: Implement mouse-based camera control
+}
 
+void GLViewer::scroll_callback(double yoffset) {
+    // Zoom with scroll
+    camera_distance_ -= static_cast<float>(yoffset) * 0.5f;
+    camera_distance_ = std::max(1.0f, std::min(camera_distance_, 20.0f));
+}
+
+void GLViewer::cleanup() {
+    // Delete OpenGL objects
+    if (shader_program_) {
+        glDeleteProgram(shader_program_);
+        shader_program_ = 0;
+    }
+
+    if (vao_) {
+        glDeleteVertexArrays(1, &vao_);
+        vao_ = 0;
+    }
+
+    if (vbo_points_) {
+        glDeleteBuffers(1, &vbo_points_);
+        vbo_points_ = 0;
+    }
+
+    if (vbo_colors_) {
+        glDeleteBuffers(1, &vbo_colors_);
+        vbo_colors_ = 0;
+    }
+
+    // Destroy window and terminate GLFW
     if (window_) {
         glfwDestroyWindow(window_);
         window_ = nullptr;
     }
+
     glfwTerminate();
 }
 

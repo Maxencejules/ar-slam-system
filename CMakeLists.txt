@@ -48,7 +48,12 @@ endif()
 # Add subdirectories
 add_subdirectory(src)
 
-# Only add tests if they exist
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt")
+# Enable testing
+enable_testing()
+
+# Option to build tests
+option(BUILD_TESTS "Build test programs" ON)
+
+if(BUILD_TESTS)
     add_subdirectory(tests)
 endif()
