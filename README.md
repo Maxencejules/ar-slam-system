@@ -4,7 +4,7 @@ A real-time monocular visual SLAM (Simultaneous Localization and Mapping) system
 from scratch in C++20, demonstrating core augmented reality tracking capabilities similar 
 to those used in ARCore and ARKit. 
  
-![C++](https://img.shields.io/badge/C%2B%2B-17-blue.svg) 
+![C++](https://img.shields.io/badge/C%2B%2B-20-blue.svg) 
 ![OpenCV](https://img.shields.io/badge/OpenCV-4.6.0-green.svg) 
 ![OpenGL](https://img.shields.io/badge/OpenGL-3.3-red.svg) 
 ![License](https://img.shields.io/badge/license-MIT-purple.svg) 
