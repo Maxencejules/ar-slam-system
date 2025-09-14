@@ -12,8 +12,7 @@ to those used in ARCore and ARKit.
 ## Overview 
  
 This project implements fundamental AR tracking technology without using existing SLAM 
-libraries, built specifically to demonstrate understanding of computer vision and AR 
-systems for the Google AR Software Developer position. The system achieves real-time 
+libraries, built specifically to demonstrate understanding of computer vision and AR. The system achieves real-time 
 performance (46+ FPS) while tracking 1000+ features simultaneously with 3D visualization. 
  
 ## Key Features 
