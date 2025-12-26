@@ -81,8 +81,8 @@ make -j$(nproc)
 | ESC/Q | Exit application |
  
 ### Output Windows 
-1. **2D Camera View**: Live camera feed with tracked features (green dots) 
-2. **3D Point Cloud View**: Spatial visualization with depth-based coloring 
+1. **2D Camera View**: Live camera feed with tracked features (green dots), motion trails, and performance stats.
+2. **3D Point Cloud View**: Spatial visualization with depth-based coloring and reference grid floor.
  
 [GitHub Repository](https://github.com/Maxencejules/ar-slam-system)
  
@@ -91,18 +91,16 @@ make -j$(nproc)
 ### Feature Detection & Tracking 
 - ORB Feature Detection: Up to 1000 features per frame 
 - KLT Optical Flow: Pyramidal Lucas-Kanade with 3 levels 
-- RANSAC: Outlier rejection with fundamental matrix estimation 
+- RANSAC: Outlier rejection with fundamental matrix estimation (Epipolar Geometry Constraint)
  
 ### Memory Pool Design 
 Custom pool allocator with O(1) allocation/deallocation, maintaining 256MB constraint for 
 embedded systems. 
  
 ### 3D Visualization 
-OpenGL 3.3 Core Profile with custom shaders for point cloud rendering. Depth indicated 
-by color gradient: 
-- Near: Red 
-- Mid: Green 
-- Far: Blue 
+OpenGL 3.3 Core Profile with custom shaders for point cloud rendering.
+- **Depth Coloring**: Near (Red) -> Mid (Green) -> Far (Blue)
+- **Spatial Context**: 3D grid floor for ground plane reference
  
 ## Dependencies 
  
