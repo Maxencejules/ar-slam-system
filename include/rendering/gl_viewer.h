@@ -114,6 +114,12 @@ private:
     GLuint vbo_colors_ = 0;            ///< Vertex Buffer Object for colors
     GLuint shader_program_ = 0;        ///< Shader program handle
 
+    // Grid resources
+    GLuint vbo_grid_points_ = 0;
+    GLuint vbo_grid_colors_ = 0;
+    int grid_vertex_count_ = 0;
+    void init_grid();
+
     // Mouse control state
     bool mouse_pressed_ = false;       ///< Is mouse button pressed
     double last_mouse_x_ = 0.0;        ///< Last mouse X position
@@ -147,6 +153,11 @@ private:
      * @brief Draw coordinate axes
      */
     void draw_axes();
+
+    /**
+     * @brief Draw grid floor
+     */
+    void draw_grid();
 };
 
 } // namespace ar_slam

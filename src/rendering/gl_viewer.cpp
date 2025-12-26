@@ -101,6 +101,13 @@ bool GLViewer::init_opengl() {
     glGenBuffers(1, &vbo_points_);
     glGenBuffers(1, &vbo_colors_);
 
+    // Create Grid VBOs
+    glGenBuffers(1, &vbo_grid_points_);
+    glGenBuffers(1, &vbo_grid_colors_);
+
+    // Initialize Grid geometry
+    init_grid();
+
     // Enable depth testing
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_PROGRAM_POINT_SIZE);
@@ -291,6 +298,61 @@ void GLViewer::draw_axes() {
     glLineWidth(1.0f);
 }
 
+void GLViewer::init_grid() {
+    std::vector<glm::vec3> grid_points;
+    std::vector<glm::vec3> grid_colors;
+
+    float size = 10.0f;
+    float step = 1.0f;
+    glm::vec3 color(0.3f, 0.3f, 0.3f); // Dark gray grid lines
+
+    for (float i = -size; i <= size; i += step) {
+        // Lines parallel to X
+        grid_points.push_back(glm::vec3(-size, -2.0f, i));
+        grid_points.push_back(glm::vec3(size, -2.0f, i));
+        grid_colors.push_back(color);
+        grid_colors.push_back(color);
+
+        // Lines parallel to Z
+        grid_points.push_back(glm::vec3(i, -2.0f, -size));
+        grid_points.push_back(glm::vec3(i, -2.0f, size));
+        grid_colors.push_back(color);
+        grid_colors.push_back(color);
+    }
+
+    grid_vertex_count_ = grid_points.size();
+
+    // Upload grid data to static buffers
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_grid_points_);
+    glBufferData(GL_ARRAY_BUFFER, grid_points.size() * sizeof(glm::vec3),
+                grid_points.data(), GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_grid_colors_);
+    glBufferData(GL_ARRAY_BUFFER, grid_colors.size() * sizeof(glm::vec3),
+                grid_colors.data(), GL_STATIC_DRAW);
+}
+
+void GLViewer::draw_grid() {
+    if (grid_vertex_count_ == 0) return;
+
+    glLineWidth(1.0f);
+    glBindVertexArray(vao_);
+
+    // Bind grid buffers
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_grid_points_);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+    glEnableVertexAttribArray(0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_grid_colors_);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+    glEnableVertexAttribArray(1);
+
+    // Draw grid
+    glDrawArrays(GL_LINES, 0, grid_vertex_count_);
+
+    glBindVertexArray(0);
+}
+
 bool GLViewer::render() {
     if (glfwWindowShouldClose(window_)) return false;
 
@@ -311,6 +373,9 @@ bool GLViewer::render() {
     GLuint proj_loc = glGetUniformLocation(shader_program_, "projection");
     glUniformMatrix4fv(view_loc, 1, GL_FALSE, &view_matrix_[0][0]);
     glUniformMatrix4fv(proj_loc, 1, GL_FALSE, &projection_matrix_[0][0]);
+
+    // Draw grid
+    draw_grid();
 
     // Draw coordinate axes
     draw_axes();
@@ -390,6 +455,16 @@ void GLViewer::cleanup() {
     if (vbo_colors_) {
         glDeleteBuffers(1, &vbo_colors_);
         vbo_colors_ = 0;
+    }
+
+    if (vbo_grid_points_) {
+        glDeleteBuffers(1, &vbo_grid_points_);
+        vbo_grid_points_ = 0;
+    }
+
+    if (vbo_grid_colors_) {
+        glDeleteBuffers(1, &vbo_grid_colors_);
+        vbo_grid_colors_ = 0;
     }
 
     // Destroy window and terminate GLFW
