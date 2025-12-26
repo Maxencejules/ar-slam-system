@@ -28,12 +28,14 @@ target_link_libraries(slam_core PUBLIC
 )
 
 # Main executable
-add_executable(ar_slam_app main.cpp)
-target_link_libraries(ar_slam_app
-        slam_core
-        ${OpenCV_LIBS}
-        Threads::Threads
-)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
+    add_executable(ar_slam_app main.cpp)
+    target_link_libraries(ar_slam_app
+            slam_core
+            ${OpenCV_LIBS}
+            Threads::Threads
+    )
+endif()
 
 # Camera test - THIS NEEDS rendering library too!
 add_executable(camera_test camera_test.cpp)

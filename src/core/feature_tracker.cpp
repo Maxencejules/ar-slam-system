@@ -73,6 +73,31 @@ TrackingResult FeatureTracker::track_features(Frame::Ptr current_frame) {
             }
         }
 
+        // Apply RANSAC with Fundamental Matrix to remove outliers
+        if (good_curr_points.size() >= 8) {
+            std::vector<uchar> mask;
+            cv::findFundamentalMat(good_prev_points, good_curr_points, cv::FM_RANSAC, 3.0, 0.99, mask);
+
+            std::vector<cv::Point2f> ransac_prev_points;
+            std::vector<cv::Point2f> ransac_curr_points;
+            std::vector<int> ransac_track_ids;
+
+            for (size_t i = 0; i < mask.size(); ++i) {
+                if (mask[i]) {
+                    ransac_prev_points.push_back(good_prev_points[i]);
+                    ransac_curr_points.push_back(good_curr_points[i]);
+                    ransac_track_ids.push_back(good_track_ids[i]);
+                }
+            }
+
+            // Only update if we didn't lose too many points (sanity check)
+            if (ransac_curr_points.size() > good_curr_points.size() * 0.5) {
+                good_prev_points = ransac_prev_points;
+                good_curr_points = ransac_curr_points;
+                good_track_ids = ransac_track_ids;
+            }
+        }
+
         // Calculate tracking quality
         result.tracking_quality = prev_points_.empty() ? 0.0f :
                                  static_cast<float>(good_curr_points.size()) / prev_points_.size();

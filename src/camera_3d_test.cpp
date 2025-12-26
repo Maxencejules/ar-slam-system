@@ -26,6 +26,10 @@ int main() {
     ar_slam::FeatureTracker tracker;
     cv::Mat frame;
 
+    // Trail history for 2D visualization
+    const int TRAIL_LENGTH = 10;
+    std::map<int, std::deque<cv::Point2f>> feature_trails;
+
     // FPS tracking
     int frame_count = 0;
     auto last_time = std::chrono::high_resolution_clock::now();
@@ -98,33 +102,67 @@ int main() {
         // Show 2D view with overlays
         cv::Mat display = frame.clone();
 
-        // Draw tracked points
-        for (size_t i = 0; i < result.curr_points.size(); ++i) {
-            cv::circle(display, result.curr_points[i], 3, cv::Scalar(0, 255, 0), -1);
-
-            // Draw motion vectors
-            if (i < result.prev_points.size()) {
-                cv::line(display, result.prev_points[i], result.curr_points[i],
-                        cv::Scalar(0, 0, 255), 1);
+        // Update trails
+        std::set<int> current_ids;
+        for(size_t i = 0; i < result.track_ids.size(); ++i) {
+            int id = result.track_ids[i];
+            current_ids.insert(id);
+            feature_trails[id].push_back(result.curr_points[i]);
+            if(feature_trails[id].size() > TRAIL_LENGTH) {
+                feature_trails[id].pop_front();
             }
         }
+
+        // Clean up old trails
+        for(auto it = feature_trails.begin(); it != feature_trails.end(); ) {
+            if(current_ids.find(it->first) == current_ids.end()) {
+                it = feature_trails.erase(it);
+            } else {
+                ++it;
+            }
+        }
+
+        // Draw trails
+        for (const auto& [id, trail] : feature_trails) {
+            if (trail.size() < 2) continue;
+            for (size_t i = 0; i < trail.size() - 1; ++i) {
+                float opacity = (float)(i + 1) / trail.size();
+                cv::line(display, trail[i], trail[i+1],
+                        cv::Scalar(0, 255 * opacity, 0), 1, cv::LINE_AA);
+            }
+        }
+
+        // Draw tracked points
+        for (size_t i = 0; i < result.curr_points.size(); ++i) {
+            cv::circle(display, result.curr_points[i], 3, cv::Scalar(0, 255, 0), -1, cv::LINE_AA);
+        }
+
+        // Draw UI overlay
+        int overlay_height = 140;
+        int overlay_width = 250;
+        cv::Mat overlay = display(cv::Rect(0, 0, overlay_width, overlay_height));
+        cv::Mat dimmed;
+        double alpha = 0.5;
+        overlay.copyTo(dimmed);
+        cv::rectangle(dimmed, cv::Rect(0, 0, overlay_width, overlay_height), cv::Scalar(0, 0, 0), -1);
+        cv::addWeighted(dimmed, alpha, overlay, 1.0 - alpha, 0, overlay);
 
         // Add text overlays
         cv::putText(display, "FPS: " + std::to_string((int)fps),
                    cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX,
-                   0.8, cv::Scalar(0, 255, 0), 2);
+                   0.6, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
 
         cv::putText(display, "Tracked: " + std::to_string(result.num_tracked),
                    cv::Point(10, 60), cv::FONT_HERSHEY_SIMPLEX,
-                   0.8, cv::Scalar(0, 255, 0), 2);
+                   0.6, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
 
         cv::putText(display, "Quality: " + std::to_string((int)(result.tracking_quality * 100)) + "%",
                    cv::Point(10, 90), cv::FONT_HERSHEY_SIMPLEX,
-                   0.8, cv::Scalar(0, 255, 0), 2);
+                   0.6, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
 
         cv::putText(display, "3D Points: " + std::to_string(points_3d.size()),
                    cv::Point(10, 120), cv::FONT_HERSHEY_SIMPLEX,
-                   0.8, cv::Scalar(0, 255, 0), 2);
+                   0.6, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
 
         cv::imshow("2D View", display);
 
