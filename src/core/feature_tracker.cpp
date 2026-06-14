@@ -1,5 +1,5 @@
 #include "core/feature_tracker.h"
-#include <iostream>
+#include "core/log.h"
 
 namespace ar_slam {
 
@@ -23,7 +23,7 @@ TrackingResult FeatureTracker::track_features(Frame::Ptr current_frame) {
 
         result.num_tracked = prev_points_.size();
         result.tracking_quality = 1.0f;
-        std::cout << "Initialized tracker with " << result.num_tracked << " features" << std::endl;
+        AR_LOG("Initialized tracker with " << result.num_tracked << " features");
 
         // Set result points for consistency
         result.curr_points = prev_points_;
@@ -32,7 +32,7 @@ TrackingResult FeatureTracker::track_features(Frame::Ptr current_frame) {
     } else {
         // Track using optical flow
         if (prev_points_.empty()) {
-            std::cout << "No previous points to track, re-initializing..." << std::endl;
+            AR_LOG("No previous points to track, re-initializing...");
             prev_frame_.reset();
             return track_features(current_frame);  // Recursive call to re-initialize
         }
@@ -102,8 +102,8 @@ TrackingResult FeatureTracker::track_features(Frame::Ptr current_frame) {
         result.tracking_quality = prev_points_.empty() ? 0.0f :
                                  static_cast<float>(good_curr_points.size()) / prev_points_.size();
 
-        std::cout << "Tracked " << good_curr_points.size() << "/" << prev_points_.size()
-                  << " features (quality: " << result.tracking_quality << ")" << std::endl;
+        AR_LOG("Tracked " << good_curr_points.size() << "/" << prev_points_.size()
+                          << " features (quality: " << result.tracking_quality << ")");
 
         // Check if we need to re-detect features
         const float MIN_QUALITY = 0.5f;
@@ -111,7 +111,7 @@ TrackingResult FeatureTracker::track_features(Frame::Ptr current_frame) {
         const size_t TARGET_FEATURES = 500;
 
         if (result.tracking_quality < MIN_QUALITY || good_curr_points.size() < MIN_FEATURES) {
-            std::cout << "Tracking quality too low, re-detecting features..." << std::endl;
+            AR_LOG("Tracking quality too low, re-detecting features...");
 
             // Re-extract features completely
             current_frame->extract_features();
@@ -139,7 +139,7 @@ TrackingResult FeatureTracker::track_features(Frame::Ptr current_frame) {
                 result.inliers.push_back(true);
             }
 
-            std::cout << "Re-initialized with " << result.num_tracked << " features" << std::endl;
+            AR_LOG("Re-initialized with " << result.num_tracked << " features");
 
         } else {
             // Normal tracking result
@@ -149,7 +149,7 @@ TrackingResult FeatureTracker::track_features(Frame::Ptr current_frame) {
             result.num_tracked = good_curr_points.size();
             result.num_inliers = result.num_tracked;
 
-            for (size_t i = 0; i < result.num_tracked; ++i) {
+            for (int i = 0; i < result.num_tracked; ++i) {
                 result.inliers.push_back(true);
             }
 
@@ -180,8 +180,8 @@ TrackingResult FeatureTracker::track_features(Frame::Ptr current_frame) {
                 }
 
                 if (added > 0) {
-                    std::cout << "Added " << added << " new features (total: "
-                              << good_curr_points.size() << ")" << std::endl;
+                    AR_LOG("Added " << added << " new features (total: " << good_curr_points.size()
+                                    << ")");
                 }
 
                 // Update result with new features
@@ -205,7 +205,7 @@ void FeatureTracker::reset() {
     prev_points_.clear();
     track_ids_.clear();
     next_track_id_ = 0;
-    std::cout << "Tracker reset" << std::endl;
+    AR_LOG("Tracker reset");
 }
 
 } // namespace ar_slam

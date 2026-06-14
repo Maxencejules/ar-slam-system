@@ -1,158 +1,190 @@
-# AR SLAM System 
- 
-A real-time monocular visual SLAM (Simultaneous Localization and Mapping) system built 
-from scratch in C++20, demonstrating core augmented reality tracking capabilities similar 
-to those used in ARCore and ARKit. 
- 
-![C++](https://img.shields.io/badge/C%2B%2B-20-blue.svg) 
-![OpenCV](https://img.shields.io/badge/OpenCV-4.6.0-green.svg) 
-![OpenGL](https://img.shields.io/badge/OpenGL-3.3-red.svg) 
-![License](https://img.shields.io/badge/license-MIT-purple.svg) 
- 
-## Overview 
- 
-This project implements fundamental AR tracking technology without using existing SLAM 
-libraries, built specifically to demonstrate understanding of computer vision and AR. The system achieves real-time 
-performance (46+ FPS) while tracking 1000+ features simultaneously with 3D visualization. 
- 
-## Key Features 
- 
-- **Real-time Performance**: 1000+ tracked features 
-- **3D Point Cloud Visualization**: OpenGL-based rendering with depth-based coloring 
-- **Robust Feature Tracking**: ORB feature detection with KLT optical flow
-- **Modern C++ Design**: C++20 with smart pointers, templates, and RAII principles
-- **Cross-platform Ready**: Designed for Linux with V4L2 camera interface structure  
-- Real-time operation on standard hardware
-- Robust tracking with automatic recovery
-- Handles typical handheld camera motion
-- Automatic re-detection when tracking degrades
-- Memory-efficient design suitable for embedded systems
+# AR SLAM System
 
- 
-## System Architecture 
+A real-time **monocular visual tracking and structure-from-motion** system written
+from scratch in modern C++. It implements the geometric core of an augmented-reality
+tracker — feature detection, optical-flow tracking, robust outlier rejection, and
+**two-view 3D reconstruction** — without relying on an existing SLAM library, to
+demonstrate the underlying computer-vision and multi-view-geometry fundamentals.
+
+[![CI](https://github.com/Maxencejules/ar-slam-system/actions/workflows/ci.yml/badge.svg)](https://github.com/Maxencejules/ar-slam-system/actions/workflows/ci.yml)
+![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)
+![OpenCV](https://img.shields.io/badge/OpenCV-4.x-green.svg)
+![OpenGL](https://img.shields.io/badge/OpenGL-3.3-red.svg)
+![License](https://img.shields.io/badge/license-MIT-purple.svg)
+
+---
+
+## What this is (and what it isn't)
+
+Being precise about scope matters more than buzzwords, so:
+
+| ✅ Implemented | ⛔ Not (yet) implemented |
+|---|---|
+| ORB feature detection | Pose graph / global bundle adjustment |
+| Pyramidal KLT optical-flow tracking | Loop-closure detection |
+| RANSAC fundamental/essential-matrix outlier rejection | Dense reconstruction |
+| Two-view relative pose (essential matrix + cheirality) | IMU / inertial fusion |
+| **Real DLT triangulation of 3D structure** | Metric scale (monocular is scale-ambiguous) |
+| Keyframe-based incremental mapping | Relocalization after total tracking loss |
+| Fixed-capacity O(1) object pool | |
+| OpenGL 3.3 point-cloud visualization | |
+
+In short: this is a faithful implementation of the **visual front-end plus a
+two-view reconstruction back-end** — the foundation a full SLAM/VIO system is
+built on. The 3D points shown by the demo are **genuinely triangulated** from
+recovered camera motion, not synthesized. Where the system stops short of full
+SLAM (global optimization, loop closure), that is called out honestly above and
+in the [roadmap](#roadmap).
+
+## Pipeline
+
 ```
-ar-slam-system/ 
-├── Core Components (src/core/) 
-│   ├── Frame Management 
-│   ├── Feature Detection & Tracking 
-│   └── Memory Management 
-├── 3D Visualization (src/rendering/) 
-│   ├── OpenGL 3.3 Core Profile 
-│   └── Real-time point cloud rendering 
-└── Testing Framework (tests/) 
-    ├── Performance benchmarks 
-    └── Unit tests 
+ camera frame
+      │
+      ▼
+┌───────────────┐   ORB keypoints + descriptors
+│  Frame        │──────────────────────────────┐
+└───────────────┘                               │
+      │ grayscale                               │
+      ▼                                         ▼
+┌───────────────┐   tracked correspondences   ┌──────────────────────┐
+│ FeatureTracker│────────────────────────────▶│ IncrementalMapper    │
+│ (KLT + RANSAC)│      (id-stable tracks)      │  • keyframe selection │
+└───────────────┘                             │  • parallax gating     │
+                                              └──────────┬───────────┘
+                                                         │ matched views
+                                                         ▼
+                                              ┌──────────────────────┐
+                                              │ TwoViewReconstruction │
+                                              │  • essential matrix    │
+                                              │  • recoverPose         │
+                                              │  • DLT triangulation   │
+                                              └──────────┬───────────┘
+                                                         │ 3D points + pose
+                                                         ▼
+                                                  ┌──────────────┐
+                                                  │  GLViewer    │
+                                                  └──────────────┘
 ```
- 
-## Quick Start 
- 
-### Prerequisites 
+
+## Key components
+
+- **`core/geometry.h`** — dependency-free multi-view geometry: a 4×4 symmetric
+  Jacobi eigensolver and DLT triangulation (Hartley & Zisserman). Pure C++ so the
+  math is unit-tested in isolation.
+- **`core/feature_tracker`** — ORB detection, pyramidal Lucas–Kanade optical flow,
+  RANSAC outlier rejection, automatic re-detection and feature top-up.
+- **`core/reconstruction`** — estimates the essential matrix with RANSAC, decomposes
+  it into a relative pose via the cheirality (positive-depth) constraint, and
+  triangulates inliers using the geometry core.
+- **`core/incremental_mapper`** — keyframe management: matches tracks by id, gates
+  on parallax, and triggers reconstruction once the baseline is wide enough.
+- **`core/memory_pool.h`** — a fixed-capacity object pool backed by a single
+  contiguous slab with an intrusive free-list: **true O(1)** allocate/deallocate and
+  a hard, enforced capacity (suitable for latency- and memory-constrained pipelines).
+- **`rendering/gl_viewer`** — OpenGL 3.3 core-profile point-cloud renderer with
+  depth-based coloring, a ground-plane grid, and orbit controls.
+
+## Building
+
+### Prerequisites (Ubuntu/Debian)
+
 ```bash
-sudo apt-get update 
-sudo apt-get install -y build-essential cmake libopencv-dev libglew-dev libglfw3-dev libglm-dev libeigen3-dev 
+sudo apt-get update
+sudo apt-get install -y build-essential cmake \
+    libopencv-dev libgl1-mesa-dev libglew-dev libglfw3-dev libglm-dev libeigen3-dev
 ```
- 
-### Build Instructions 
+
+The **core library and its tests depend only on OpenCV** and standard C++17; OpenGL,
+GLFW and GLEW are only needed for the interactive viewers.
+
+### Configure & build
+
 ```bash
-# Clone repository 
-git clone https://github.com/Maxencejules/ar-slam-system.git 
-cd ar-slam-system 
-
-# Create build directory 
-mkdir build && cd build 
-
-# Configure with CMake (Release mode for best performance) 
-cmake .. -DCMAKE_BUILD_TYPE=Release 
-
-# Build with all cores 
-make -j$(nproc) 
-
-# Run the main 3D tracking demo 
-./src/camera_3d 
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
 ```
- 
-## Usage 
- 
-### Controls 
+
+Useful options: `-DBUILD_TESTS=ON` (default), `-DBUILD_BENCHMARKS=ON`,
+`-DENABLE_NATIVE_ARCH=ON` (adds `-march=native` for the local CPU),
+`-DWARNINGS_AS_ERRORS=ON`.
+
+### Run
+
+```bash
+./build/src/camera_3d     # full mapping demo: tracking + two-view reconstruction
+./build/src/camera_test   # lightweight real-time tracking viewer
+```
+
 | Key | Action |
 |-----|--------|
-| Arrow Keys | Rotate/zoom 3D view |
-| Space | Print performance statistics |
-| ESC/Q | Exit application |
- 
-### Output Windows 
-1. **2D Camera View**: Live camera feed with tracked features (green dots), motion trails, and performance stats.
-2. **3D Point Cloud View**: Spatial visualization with depth-based coloring and reference grid floor.
- 
-[GitHub Repository](https://github.com/Maxencejules/ar-slam-system)
- 
-## Technical Implementation 
- 
-### Feature Detection & Tracking 
-- ORB Feature Detection: Up to 1000 features per frame 
-- KLT Optical Flow: Pyramidal Lucas-Kanade with 3 levels 
-- RANSAC: Outlier rejection with fundamental matrix estimation (Epipolar Geometry Constraint)
- 
-### Memory Pool Design 
-Custom pool allocator with O(1) allocation/deallocation, maintaining 256MB constraint for 
-embedded systems. 
- 
-### 3D Visualization 
-OpenGL 3.3 Core Profile with custom shaders for point cloud rendering.
-- **Depth Coloring**: Near (Red) -> Mid (Green) -> Far (Blue)
-- **Spatial Context**: 3D grid floor for ground plane reference
- 
-## Dependencies 
- 
-| Library | Version | Purpose |
-|---------|---------|---------|
-| OpenCV  | 4.6.0   | Computer vision algorithms |
-| OpenGL  | 3.3+    | 3D rendering |
-| GLFW    | 3.3+    | Window management |
-| GLEW    | 2.2+    | OpenGL extensions |
-| GLM     | 0.9.9+  | Mathematics |
-| Eigen3  | 3.4+    | Linear algebra |
- 
-## Project Structure 
+| Arrow keys | Orbit / zoom the 3D view |
+| `R` | Reset the tracker (camera_test) |
+| Space | Print statistics |
+| `Q` / Esc | Quit |
+
+## Testing
+
+The suite is **headless and deterministic** — it uses synthetic images and
+synthetic two-view scenes, so it runs unattended in CI (no webcam required):
+
+```bash
+cd build && ctest --output-on-failure
 ```
-ar-slam-system/ 
-├── CMakeLists.txt 
-├── README.md 
-├── include/ 
-│   ├── core/ 
-│   │   ├── frame.h 
-│   │   ├── feature_tracker.h 
-│   │   └── memory_pool.h 
-│   └── rendering/ 
-│       └── gl_viewer.h 
-├── src/ 
-│   ├── camera_3d_test.cpp 
-│   ├── core/ 
-│   │   ├── frame.cpp 
-│   │   └── feature_tracker.cpp 
-│   └── rendering/ 
-│       └── gl_viewer.cpp 
-└── tests/ 
-    ├── benchmark/ 
-    │   └── benchmark_main.cpp 
-    └── unit/ 
-        └── test_features.cpp 
-```
- 
-## Future Enhancements 
-- Bundle adjustment for global optimization 
-- Loop closure detection 
-- Dense reconstruction 
-- IMU sensor fusion 
-- Mobile deployment (Android NDK) 
- 
-## License 
-MIT License - see LICENSE file for details. 
- 
-## Contact 
-Maxence Jules  
-- Email: powe840@gmail.com  
-- LinkedIn: linkedin.com/in/julesmax  
-- GitHub: @Maxencejules  
- 
-Built with passion for augmented reality and computer vision.
+
+| Test | Verifies |
+|------|----------|
+| `test_geometry` | Jacobi eigensolver; DLT triangulation recovers known 3D points to numerical precision, and stays accurate under sub-pixel noise |
+| `test_memory_pool` | Capacity derivation, O(1) slab reuse, enforced exhaustion, construction/destruction, move semantics |
+| `test_reconstruction` | End-to-end: synthetic scene → projected into two cameras → recovered pose and structure match ground truth (up to scale) |
+| `test_tracking` | ORB extraction counts; KLT tracking quality under known motion; tracker reset |
+
+Standalone benchmarks (`-DBUILD_BENCHMARKS=ON`) report mean/stddev/min/max timings
+for feature extraction, tracking, the memory pool, and the full pipeline under
+synthetic motion with noise, blur and lighting variation. Run them to reproduce
+performance numbers on your own hardware.
+
+## Architecture
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for module responsibilities, the
+data-flow walkthrough, and the rationale behind the main design decisions.
+
+## Technical notes
+
+**Feature tracking.** ORB keypoints are tracked frame-to-frame with pyramidal
+Lucas–Kanade optical flow over a 4-level (`maxLevel = 3`) image pyramid. Tracks failing the optical-flow status/error checks or
+leaving the image are dropped; a fundamental-matrix RANSAC pass removes
+epipolar-inconsistent matches. When tracked count or quality falls below threshold,
+features are re-detected, and a masked detector tops the track set back up so the
+distribution stays even.
+
+**Two-view geometry.** Relative motion is recovered from the essential matrix
+(RANSAC) and decomposed with the cheirality constraint so the solution places
+points in front of both cameras. Each inlier is triangulated with a row-normalized
+DLT solved as the smallest-eigenvalue null space of `AᵀA`. Because monocular
+reconstruction is scale-ambiguous, translation is unit-length and structure is
+defined up to a global scale.
+
+**Memory pool.** A single over-aligned slab is carved into slots threaded onto an
+intrusive free-list, giving constant-time allocation/deallocation with zero
+post-construction heap traffic and a hard capacity ceiling.
+
+## Roadmap
+
+The natural path from this front-end to a complete SLAM system:
+
+1. **Local bundle adjustment** over a sliding keyframe window.
+2. **PnP-based pose tracking** against the existing map (frame-to-map, not just
+   frame-to-frame).
+3. **Loop-closure detection** (e.g. DBoW) with pose-graph optimization.
+4. **IMU pre-integration** for metric scale and robustness (visual-inertial odometry).
+5. **Mobile deployment** (Android NDK / ARM NEON).
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+## Contact
+
+**Maxence Jules** · [GitHub @Maxencejules](https://github.com/Maxencejules) ·
+[LinkedIn](https://linkedin.com/in/julesmax)

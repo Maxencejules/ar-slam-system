@@ -1,59 +1,53 @@
 cmake_minimum_required(VERSION 3.16)
-project(ar_slam_system VERSION 0.1.0 LANGUAGES CXX C)
+project(ar_slam_system VERSION 0.2.0 LANGUAGES CXX C)
 
-# Project settings
+# --- Language standard ---------------------------------------------------
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Build type
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Debug)
+# --- Build type ----------------------------------------------------------
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
-# Compiler flags
-set(CMAKE_CXX_FLAGS "-Wall -Wextra -pthread")
-set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
+# --- Options -------------------------------------------------------------
+option(BUILD_TESTS "Build the unit/integration test suite" ON)
+option(BUILD_BENCHMARKS "Build the standalone benchmark executables" OFF)
+option(ENABLE_NATIVE_ARCH "Optimise for the local CPU (-march=native)" OFF)
+option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 
-# Find packages - OpenCV is REQUIRED now
-find_package(OpenCV REQUIRED)  # Changed from QUIET to REQUIRED
+# --- Warnings / optimisation flags (GCC/Clang only) ----------------------
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(-Wall -Wextra)
+    if(WARNINGS_AS_ERRORS)
+        add_compile_options(-Werror)
+    endif()
+    if(ENABLE_NATIVE_ARCH)
+        add_compile_options($<$<CONFIG:Release>:-march=native>)
+    endif()
+endif()
+
+# --- Dependencies --------------------------------------------------------
+find_package(OpenCV REQUIRED)
 find_package(Eigen3 QUIET)
 find_package(OpenGL REQUIRED)
 find_package(GLEW REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(Threads REQUIRED)
 
-# Include directories
-include_directories(
-        ${PROJECT_SOURCE_DIR}/include
-        ${OpenCV_INCLUDE_DIRS}
-        ${OPENGL_INCLUDE_DIRS}
-        ${GLEW_INCLUDE_DIRS}
-)
-
-# Status messages
-message(STATUS "OpenCV found: ${OpenCV_VERSION}")
-message(STATUS "OpenCV libraries: ${OpenCV_LIBS}")
-message(STATUS "OpenCV include dirs: ${OpenCV_INCLUDE_DIRS}")
-
-# Add Eigen3 if found
+message(STATUS "OpenCV version:  ${OpenCV_VERSION}")
 if(Eigen3_FOUND)
-    include_directories(${EIGEN3_INCLUDE_DIR})
-    message(STATUS "Eigen3 found")
+    message(STATUS "Eigen3 found:    ${EIGEN3_VERSION_STRING}")
 else()
-    message(WARNING "Eigen3 not found. Some features will be disabled.")
+    message(STATUS "Eigen3 not found (optional; core builds without it)")
 endif()
 
-# Add subdirectories
+# --- Targets -------------------------------------------------------------
 add_subdirectory(src)
 
-# Enable testing
-enable_testing()
-
-# Option to build tests
-option(BUILD_TESTS "Build test programs" ON)
-
 if(BUILD_TESTS)
+    enable_testing()
     add_subdirectory(tests)
 endif()

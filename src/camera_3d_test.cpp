@@ -1,10 +1,80 @@
 #include <iostream>
 #include <opencv2/opencv.hpp>
-#include <thread>
+#include <algorithm>
 #include <chrono>
+#include <cmath>
+#include <deque>
+#include <map>
+#include <memory>
+#include <set>
+#include <vector>
 #include "core/frame.h"
 #include "core/feature_tracker.h"
+#include "core/incremental_mapper.h"
 #include "rendering/gl_viewer.h"
+
+namespace {
+
+// Pinhole intrinsics from frame size, using focal ~ max(width, height). This is
+// the standard uncalibrated default; for metric results, calibrate the camera
+// and supply a real K.
+cv::Matx33d default_intrinsics(const cv::Size& size) {
+    double f = static_cast<double>(std::max(size.width, size.height));
+    return cv::Matx33d(f, 0, size.width / 2.0, 0, f, size.height / 2.0, 0, 0, 1);
+}
+
+// Centre and scale a reconstructed cloud for the orbit viewer (Y flipped to
+// OpenGL's up axis). Relative geometry is preserved; only the global pose and
+// scale are normalised for display.
+std::vector<cv::Point3f> to_display_cloud(const std::vector<cv::Point3f>& pts) {
+    std::vector<cv::Point3f> out;
+    if (pts.empty()) return out;
+
+    double cx = 0, cy = 0, cz = 0;
+    for (const auto& p : pts) {
+        cx += p.x;
+        cy += p.y;
+        cz += p.z;
+    }
+    cx /= pts.size();
+    cy /= pts.size();
+    cz /= pts.size();
+
+    std::vector<float> radii;
+    radii.reserve(pts.size());
+    for (const auto& p : pts) {
+        double dx = p.x - cx, dy = p.y - cy, dz = p.z - cz;
+        radii.push_back(static_cast<float>(std::sqrt(dx * dx + dy * dy + dz * dz)));
+    }
+    std::nth_element(radii.begin(), radii.begin() + radii.size() / 2, radii.end());
+    float median_radius = radii[radii.size() / 2];
+    float scale = (median_radius > 1e-3f) ? 2.5f / median_radius : 1.0f;
+
+    out.reserve(pts.size());
+    for (const auto& p : pts) {
+        out.push_back(cv::Point3f(static_cast<float>(p.x - cx) * scale,
+                                  static_cast<float>(-(p.y - cy)) * scale,
+                                  static_cast<float>(p.z - cz) * scale));
+    }
+    return out;
+}
+
+// Until enough parallax accrues, show the live features on a frontal plane.
+// This is an honest 2D projection (constant depth) rather than invented depth.
+std::vector<cv::Point3f> features_on_plane(const std::vector<cv::Point2f>& pts,
+                                           const cv::Matx33d& K, float depth) {
+    std::vector<cv::Point3f> out;
+    out.reserve(pts.size());
+    double fx = K(0, 0), fy = K(1, 1), cx = K(0, 2), cy = K(1, 2);
+    for (const auto& p : pts) {
+        float X = static_cast<float>((p.x - cx) / fx) * depth;
+        float Y = static_cast<float>((p.y - cy) / fy) * depth;
+        out.push_back(cv::Point3f(X, -Y, 0.0f));
+    }
+    return out;
+}
+
+}  // namespace
 
 int main() {
     std::cout << "=== 3D Camera Test ===" << std::endl;
@@ -24,6 +94,7 @@ int main() {
     }
 
     ar_slam::FeatureTracker tracker;
+    std::unique_ptr<ar_slam::IncrementalMapper> mapper;  // created once frame size is known
     cv::Mat frame;
 
     // Trail history for 2D visualization
@@ -47,34 +118,21 @@ int main() {
         auto slam_frame = std::make_shared<ar_slam::Frame>(frame);
         auto result = tracker.track_features(slam_frame);
 
-        // Convert 2D points to 3D with better depth estimation
+        // Lazily build the intrinsics + mapper once we know the frame size.
+        if (!mapper) {
+            mapper = std::make_unique<ar_slam::IncrementalMapper>(default_intrinsics(frame.size()));
+        }
+
+        // Feed the tracks to the mapper. Once it has triangulated real structure
+        // from a wide-enough baseline, show that; until then show the live
+        // features on a frontal plane (an honest 2D projection, not fake depth).
+        mapper->update(result.track_ids, result.curr_points);
+
         std::vector<cv::Point3f> points_3d;
-        for (size_t i = 0; i < result.curr_points.size(); ++i) {
-            const auto& pt = result.curr_points[i];
-
-            // Normalize coordinates
-            float x = (pt.x - frame.cols/2) / 200.0f;
-            float y = -(pt.y - frame.rows/2) / 200.0f;  // Flip Y for OpenGL
-
-            // Estimate depth based on feature position and movement
-            float base_depth = 2.0f;
-
-            // Features higher in frame are typically farther away
-            float depth_from_position = base_depth + (frame.rows - pt.y) / frame.rows * 1.5f;
-
-            // If we have previous points, use motion for depth hint
-            float depth_variation = 0.0f;
-            if (i < result.prev_points.size()) {
-                float motion = cv::norm(pt - result.prev_points[i]);
-                // Less motion often means farther away
-                depth_variation = (5.0f - std::min(motion, 5.0f)) * 0.05f;
-            }
-
-            // Add some random variation for visual effect
-            float random_depth = ((rand() % 100) - 50) * 0.001f;
-
-            float z = depth_from_position + depth_variation + random_depth;
-            points_3d.push_back(cv::Point3f(x, y, z));
+        if (mapper->has_cloud()) {
+            points_3d = to_display_cloud(mapper->cloud());
+        } else {
+            points_3d = features_on_plane(result.curr_points, default_intrinsics(frame.size()), 1.0f);
         }
 
         // Update 3D viewer
@@ -138,8 +196,8 @@ int main() {
         }
 
         // Draw UI overlay
-        int overlay_height = 140;
-        int overlay_width = 250;
+        int overlay_height = 170;
+        int overlay_width = 330;
         cv::Mat overlay = display(cv::Rect(0, 0, overlay_width, overlay_height));
         cv::Mat dimmed;
         double alpha = 0.5;
@@ -163,6 +221,15 @@ int main() {
         cv::putText(display, "3D Points: " + std::to_string(points_3d.size()),
                    cv::Point(10, 120), cv::FONT_HERSHEY_SIMPLEX,
                    0.6, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+
+        // Mapping status: shows whether we are triangulating real structure or
+        // still gathering baseline.
+        std::string map_status =
+            mapper->has_cloud()
+                ? "Map: " + std::to_string(mapper->cloud().size()) + " pts (triangulated)"
+                : "Map: gathering baseline (" + std::to_string((int)mapper->last_parallax()) + "px)";
+        cv::putText(display, map_status, cv::Point(10, 150), cv::FONT_HERSHEY_SIMPLEX,
+                   0.55, cv::Scalar(0, 220, 255), 1, cv::LINE_AA);
 
         cv::imshow("2D View", display);
 

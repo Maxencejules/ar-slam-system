@@ -130,28 +130,15 @@ int main() {
             low_quality_frames++;
         }
 
-        // Convert 2D points to 3D with better depth estimation
+        // Project the tracked features onto a frontal plane for visualisation.
+        // This viewer does not estimate depth; run the `camera_3d` demo for
+        // two-view reconstruction of real 3D structure.
         std::vector<cv::Point3f> points_3d;
-        for (size_t i = 0; i < result.curr_points.size(); ++i) {
-            const auto& pt = result.curr_points[i];
-
-            // Normalize coordinates
-            float x = (pt.x - frame.cols/2) / 200.0f;
-            float y = -(pt.y - frame.rows/2) / 200.0f;
-
-            // Depth estimation based on position and motion
-            float base_depth = 2.0f;
-            float depth_from_position = base_depth + (frame.rows - pt.y) / frame.rows * 1.5f;
-
-            // Motion-based depth hint
-            float depth_variation = 0.0f;
-            if (i < result.prev_points.size()) {
-                float motion = cv::norm(pt - result.prev_points[i]);
-                depth_variation = (5.0f - std::min(motion, 5.0f)) * 0.05f;
-            }
-
-            float z = depth_from_position + depth_variation;
-            points_3d.push_back(cv::Point3f(x, y, z));
+        points_3d.reserve(result.curr_points.size());
+        for (const auto& pt : result.curr_points) {
+            float x = (pt.x - frame.cols / 2.0f) / 200.0f;
+            float y = -(pt.y - frame.rows / 2.0f) / 200.0f;
+            points_3d.push_back(cv::Point3f(x, y, 0.0f));
         }
 
         // Update 3D viewer

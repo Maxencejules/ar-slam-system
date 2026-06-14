@@ -1,0 +1,23 @@
+# Based on Google C++ style with project-specific adjustments.
+# Matches the existing 4-space, 100-column layout used across the codebase.
+---
+Language: Cpp
+BasedOnStyle: Google
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 100
+AccessModifierOffset: -4
+NamespaceIndentation: All
+PointerAlignment: Left
+AlignAfterOpenBracket: Align
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+BinPackParameters: false
+BreakConstructorInitializers: BeforeComma
+ConstructorInitializerIndentWidth: 4
+IncludeBlocks: Preserve
+SortIncludes: false
+SpaceAfterTemplateKeyword: true
+Standard: c++17

@@ -1,4 +1,5 @@
 #include "core/frame.h"
+#include "core/log.h"
 #include <opencv2/features2d.hpp>
 
 namespace ar_slam {
@@ -54,8 +55,7 @@ void Frame::extract_features(int max_features) {
     auto end = std::chrono::high_resolution_clock::now();
     extraction_time_ms_ = std::chrono::duration<double, std::milli>(end - start).count();
     
-    std::cout << "Extracted " << features_.size() << " features in " 
-              << extraction_time_ms_ << " ms" << std::endl;
+    AR_LOG("Extracted " << features_.size() << " features in " << extraction_time_ms_ << " ms");
 }
 
 size_t Frame::get_memory_usage() const {
