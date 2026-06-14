@@ -16,7 +16,7 @@ demonstrate the underlying computer-vision and multi-view-geometry fundamentals.
 
 ## What this is (and what it isn't)
 
-Being precise about scope matters more than buzzwords, so:
+A precise breakdown of what the system does and does not do:
 
 | ✅ Implemented | ⛔ Not (yet) implemented |
 |---|---|
@@ -29,12 +29,12 @@ Being precise about scope matters more than buzzwords, so:
 | Fixed-capacity O(1) object pool | |
 | OpenGL 3.3 point-cloud visualization | |
 
-In short: this is a faithful implementation of the **visual front-end plus a
-two-view reconstruction back-end** — the foundation a full SLAM/VIO system is
-built on. The 3D points shown by the demo are **genuinely triangulated** from
-recovered camera motion, not synthesized. Where the system stops short of full
-SLAM (global optimization, loop closure), that is called out honestly above and
-in the [roadmap](#roadmap).
+This is the **visual front-end and two-view reconstruction back-end** of a
+monocular SLAM pipeline — the layer that detects features, tracks them, and
+triangulates 3D structure from camera motion. The points in the demo are
+triangulated from recovered motion, so the cloud is real geometry. The
+components a production SLAM/VIO system adds on top — global optimization, loop
+closure, and metric scale — are outlined in the [roadmap](#roadmap).
 
 ## Pipeline
 

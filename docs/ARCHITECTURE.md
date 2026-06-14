@@ -69,10 +69,9 @@ baseline, so the mapper waits for sufficient median parallax before reconstructi
 and only then advances the keyframe. This avoids triangulating noise on
 near-stationary frames.
 
-**Real, honest depth.** Earlier iterations visualized heuristic/synthetic depth.
-The current pipeline shows only depth that was actually triangulated from recovered
-motion; until enough parallax accrues, the viewer shows tracked features on a
-frontal plane rather than inventing depth.
+**Triangulated depth only.** The viewer displays depth that was triangulated from
+recovered camera motion; until enough parallax accrues, it shows the tracked
+features on a frontal plane rather than inventing depth.
 
 **Fixed-capacity pool.** `MemoryPool<T>` pre-allocates one contiguous slab and hands
 out slots from an intrusive free-list. Allocation and deallocation are O(1) and
