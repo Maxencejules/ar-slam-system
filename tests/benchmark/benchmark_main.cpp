@@ -16,13 +16,13 @@ private:
     std::string name_;
     high_resolution_clock::time_point start_;
     std::vector<double>& results_;
-    
+
 public:
-    BenchmarkTimer(const std::string& name, std::vector<double>& results) 
+    BenchmarkTimer(const std::string& name, std::vector<double>& results)
         : name_(name), results_(results) {
         start_ = high_resolution_clock::now();
     }
-    
+
     ~BenchmarkTimer() {
         auto end = high_resolution_clock::now();
         double ms = duration<double, std::milli>(end - start_).count();
@@ -31,19 +31,20 @@ public:
 };
 
 void print_statistics(const std::string& name, const std::vector<double>& times) {
-    if (times.empty()) return;
-    
+    if (times.empty())
+        return;
+
     double sum = std::accumulate(times.begin(), times.end(), 0.0);
     double mean = sum / times.size();
-    
+
     double sq_sum = 0;
     for (double t : times) {
         sq_sum += (t - mean) * (t - mean);
     }
     double stddev = std::sqrt(sq_sum / times.size());
-    
+
     auto minmax = std::minmax_element(times.begin(), times.end());
-    
+
     std::cout << std::fixed << std::setprecision(2);
     std::cout << name << ":" << std::endl;
     std::cout << "  Mean:   " << mean << " ms" << std::endl;
@@ -68,15 +69,13 @@ cv::Mat create_realistic_test_image(int complexity_level) {
 
         if (rand() % 2) {
             // Rectangle
-            cv::rectangle(img, cv::Point(x, y),
-                         cv::Point(x + rand() % 30 + 10, y + rand() % 30 + 10),
-                         cv::Scalar(rand() % 100 + 155, rand() % 100 + 155, rand() % 100 + 155),
-                         -1);
+            cv::rectangle(
+                img, cv::Point(x, y), cv::Point(x + rand() % 30 + 10, y + rand() % 30 + 10),
+                cv::Scalar(rand() % 100 + 155, rand() % 100 + 155, rand() % 100 + 155), -1);
         } else {
             // Circle
             cv::circle(img, cv::Point(x, y), rand() % 15 + 5,
-                      cv::Scalar(rand() % 100 + 155, rand() % 100 + 155, rand() % 100 + 155),
-                      -1);
+                       cv::Scalar(rand() % 100 + 155, rand() % 100 + 155, rand() % 100 + 155), -1);
         }
     }
 
@@ -108,8 +107,8 @@ void benchmark_feature_extraction() {
                 // Add frame-to-frame variations
                 cv::Mat varied_img = test_img.clone();
                 varied_img.convertTo(varied_img, -1,
-                                    0.95 + (rand() % 10) / 100.0,  // 0.95-1.05 contrast
-                                    -5 + rand() % 10);              // -5 to +5 brightness
+                                     0.95 + (rand() % 10) / 100.0,  // 0.95-1.05 contrast
+                                     -5 + rand() % 10);             // -5 to +5 brightness
 
                 auto frame = std::make_shared<ar_slam::Frame>(varied_img);
 
@@ -187,8 +186,8 @@ void benchmark_tracking() {
     print_statistics("Tracking", track_times);
 
     // Print tracking quality statistics
-    double avg_quality = std::accumulate(quality_values.begin(), quality_values.end(), 0.0)
-                        / quality_values.size();
+    double avg_quality =
+        std::accumulate(quality_values.begin(), quality_values.end(), 0.0) / quality_values.size();
     auto minmax_quality = std::minmax_element(quality_values.begin(), quality_values.end());
 
     std::cout << "Tracking Quality Statistics:" << std::endl;
@@ -263,7 +262,7 @@ void benchmark_full_pipeline() {
         cv::Point2f center(320, 240);
 
         // Accumulating small motions (more realistic than random jumps)
-        double angle = sin(frame_num * 0.1) * 2.0;  // Smooth rotation
+        double angle = sin(frame_num * 0.1) * 2.0;          // Smooth rotation
         double scale = 1.0 + sin(frame_num * 0.05) * 0.02;  // Smooth scale
 
         cv::Mat M = cv::getRotationMatrix2D(center, angle, scale);
@@ -296,18 +295,20 @@ void benchmark_full_pipeline() {
         if ((frame_num + 1) % 25 == 0) {
             std::cout << "  Processed " << (frame_num + 1) << " frames... "
                       << "Avg quality: "
-                      << (std::accumulate(tracking_qualities.begin(),
-                                         tracking_qualities.end(), 0.0)
-                         / tracking_qualities.size() * 100) << "%" << std::endl;
+                      << (std::accumulate(tracking_qualities.begin(), tracking_qualities.end(),
+                                          0.0) /
+                          tracking_qualities.size() * 100)
+                      << "%" << std::endl;
         }
     }
 
     print_statistics("Full Pipeline", pipeline_times);
 
-    double avg_quality = std::accumulate(tracking_qualities.begin(),
-                                        tracking_qualities.end(), 0.0) / tracking_qualities.size();
-    std::cout << "Average tracking quality over 100 frames: "
-              << (avg_quality * 100) << "%" << std::endl;
+    double avg_quality =
+        std::accumulate(tracking_qualities.begin(), tracking_qualities.end(), 0.0) /
+        tracking_qualities.size();
+    std::cout << "Average tracking quality over 100 frames: " << (avg_quality * 100) << "%"
+              << std::endl;
     std::cout << "Note: 70-80% is excellent for continuous tracking" << std::endl;
 }
 
@@ -339,6 +340,6 @@ int main() {
     std::cout << "- Lighting variations" << std::endl;
     std::cout << "- Rotation and scale changes" << std::endl;
     std::cout << "- Continuous motion simulation" << std::endl;
-    
+
     return 0;
 }

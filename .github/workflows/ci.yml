@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    name: Build & test (Ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake \
+            libopencv-dev \
+            libgl1-mesa-dev libglew-dev libglfw3-dev libglm-dev \
+            libeigen3-dev
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON -DBUILD_BENCHMARKS=ON
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Run tests
+        working-directory: build
+        run: ctest --output-on-failure
+
+  format:
+    name: clang-format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pin the exact clang-format version so results are reproducible and match
+      # what contributors run locally (`pip install clang-format==22.1.5`).
+      - name: Install clang-format (pinned)
+        run: pipx install clang-format==22.1.5
+
+      - name: Check formatting
+        run: |
+          clang-format --version
+          files=$(find src include tests -type f \( -name '*.cpp' -o -name '*.h' \))
+          clang-format --dry-run --Werror $files

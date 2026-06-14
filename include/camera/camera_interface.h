@@ -32,4 +32,4 @@ namespace ar_slam {
         std::atomic<bool> is_running_{false};
     };
 
-} // namespace ar_slam
+}  // namespace ar_slam

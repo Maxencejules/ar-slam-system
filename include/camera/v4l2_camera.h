@@ -42,4 +42,4 @@ namespace ar_slam {
         bool xioctl(int request, void* arg);
     };
 
-} // namespace ar_slam
+}  // namespace ar_slam
