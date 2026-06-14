@@ -31,27 +31,34 @@ public:
     }
 
     double avg_fps() const {
-        if (fps_history_.empty()) return 0;
+        if (fps_history_.empty())
+            return 0;
         return std::accumulate(fps_history_.begin(), fps_history_.end(), 0.0) / fps_history_.size();
     }
 
     double avg_quality() const {
-        if (quality_history_.empty()) return 0;
-        return std::accumulate(quality_history_.begin(), quality_history_.end(), 0.0) / quality_history_.size();
+        if (quality_history_.empty())
+            return 0;
+        return std::accumulate(quality_history_.begin(), quality_history_.end(), 0.0) /
+               quality_history_.size();
     }
 
     double avg_tracked() const {
-        if (tracked_history_.empty()) return 0;
-        return std::accumulate(tracked_history_.begin(), tracked_history_.end(), 0.0) / tracked_history_.size();
+        if (tracked_history_.empty())
+            return 0;
+        return std::accumulate(tracked_history_.begin(), tracked_history_.end(), 0.0) /
+               tracked_history_.size();
     }
 
     double min_quality() const {
-        if (quality_history_.empty()) return 0;
+        if (quality_history_.empty())
+            return 0;
         return *std::min_element(quality_history_.begin(), quality_history_.end());
     }
 
     double max_quality() const {
-        if (quality_history_.empty()) return 0;
+        if (quality_history_.empty())
+            return 0;
         return *std::max_element(quality_history_.begin(), quality_history_.end());
     }
 };
@@ -118,7 +125,8 @@ int main() {
 
         // Calculate frame timing
         auto frame_end = std::chrono::high_resolution_clock::now();
-        double frame_time = std::chrono::duration<double, std::milli>(frame_end - frame_start).count();
+        double frame_time =
+            std::chrono::duration<double, std::milli>(frame_end - frame_start).count();
         double fps = 1000.0 / frame_time;
 
         // Update performance monitor
@@ -147,18 +155,17 @@ int main() {
         // Update window title with real-time stats
         std::stringstream title;
         title << "AR SLAM 3D - FPS: " << std::fixed << std::setprecision(1) << monitor.avg_fps()
-              << " | Points: " << result.num_tracked
-              << " | Quality: " << std::setprecision(1) << (monitor.avg_quality() * 100) << "%";
+              << " | Points: " << result.num_tracked << " | Quality: " << std::setprecision(1)
+              << (monitor.avg_quality() * 100) << "%";
         viewer.set_title(title.str());
 
         // Print periodic status updates
         if (frame_count % 30 == 0) {  // Every second at 30 FPS
-            std::cout << "Frame " << frame_count
-                      << " | FPS: " << std::fixed << std::setprecision(1) << monitor.avg_fps()
-                      << " | Tracked: " << result.num_tracked
-                      << " | Quality: " << std::setprecision(1) << (result.tracking_quality * 100) << "%"
-                      << " | Avg: " << (monitor.avg_quality() * 100) << "%"
-                      << std::endl;
+            std::cout << "Frame " << frame_count << " | FPS: " << std::fixed << std::setprecision(1)
+                      << monitor.avg_fps() << " | Tracked: " << result.num_tracked
+                      << " | Quality: " << std::setprecision(1) << (result.tracking_quality * 100)
+                      << "%"
+                      << " | Avg: " << (monitor.avg_quality() * 100) << "%" << std::endl;
 
             // Warn about quality drops
             if (result.tracking_quality < 0.7) {
@@ -170,7 +177,8 @@ int main() {
         }
 
         // Render 3D view
-        if (!viewer.render()) break;
+        if (!viewer.render())
+            break;
 
         // Show 2D view with detailed overlays
         cv::Mat display = frame.clone();
@@ -192,69 +200,71 @@ int main() {
             // Draw motion vectors
             if (i < result.prev_points.size()) {
                 cv::line(display, result.prev_points[i], result.curr_points[i],
-                        cv::Scalar(0, 100, 0), 1);
+                         cv::Scalar(0, 100, 0), 1);
             }
         }
 
         // Add text overlays
         int y_offset = 30;
-        cv::putText(display, "Real-Time Metrics:",
-                   cv::Point(10, y_offset), cv::FONT_HERSHEY_SIMPLEX,
-                   0.7, cv::Scalar(255, 255, 255), 2);
+        cv::putText(display, "Real-Time Metrics:", cv::Point(10, y_offset),
+                    cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(255, 255, 255), 2);
         y_offset += 30;
 
         cv::putText(display, "FPS: " + std::to_string((int)monitor.avg_fps()),
-                   cv::Point(10, y_offset), cv::FONT_HERSHEY_SIMPLEX,
-                   0.6, cv::Scalar(0, 255, 0), 2);
+                    cv::Point(10, y_offset), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 255, 0),
+                    2);
         y_offset += 25;
 
         cv::putText(display, "Tracked: " + std::to_string(result.num_tracked),
-                   cv::Point(10, y_offset), cv::FONT_HERSHEY_SIMPLEX,
-                   0.6, cv::Scalar(0, 255, 0), 2);
+                    cv::Point(10, y_offset), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 255, 0),
+                    2);
         y_offset += 25;
 
-        cv::putText(display, "Quality: " + std::to_string((int)(result.tracking_quality * 100)) + "%",
-                   cv::Point(10, y_offset), cv::FONT_HERSHEY_SIMPLEX,
-                   0.6, cv::Scalar(0, 255, 0), 2);
+        cv::putText(
+            display, "Quality: " + std::to_string((int)(result.tracking_quality * 100)) + "%",
+            cv::Point(10, y_offset), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 255, 0), 2);
         y_offset += 25;
 
-        cv::putText(display, "Avg Quality: " + std::to_string((int)(monitor.avg_quality() * 100)) + "%",
-                   cv::Point(10, y_offset), cv::FONT_HERSHEY_SIMPLEX,
-                   0.6, cv::Scalar(0, 255, 255), 2);
+        cv::putText(
+            display, "Avg Quality: " + std::to_string((int)(monitor.avg_quality() * 100)) + "%",
+            cv::Point(10, y_offset), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 255, 255), 2);
 
         // Quality indicator bar
         int bar_width = 200;
         int bar_height = 20;
         cv::rectangle(display, cv::Point(10, frame.rows - 40),
-                     cv::Point(10 + bar_width, frame.rows - 40 + bar_height),
-                     cv::Scalar(100, 100, 100), -1);
+                      cv::Point(10 + bar_width, frame.rows - 40 + bar_height),
+                      cv::Scalar(100, 100, 100), -1);
 
         int quality_width = (int)(result.tracking_quality * bar_width);
-        cv::Scalar bar_color = result.tracking_quality > 0.7 ?
-                              cv::Scalar(0, 255, 0) : cv::Scalar(0, 0, 255);
+        cv::Scalar bar_color =
+            result.tracking_quality > 0.7 ? cv::Scalar(0, 255, 0) : cv::Scalar(0, 0, 255);
         cv::rectangle(display, cv::Point(10, frame.rows - 40),
-                     cv::Point(10 + quality_width, frame.rows - 40 + bar_height),
-                     bar_color, -1);
+                      cv::Point(10 + quality_width, frame.rows - 40 + bar_height), bar_color, -1);
 
         cv::imshow("2D Camera View", display);
 
         // Handle keyboard input
         char key = cv::waitKey(1);
-        if (key == 'q' || key == 27) break;  // Q or ESC
+        if (key == 'q' || key == 27)
+            break;         // Q or ESC
         if (key == ' ') {  // Space - print detailed stats
             auto total_time = std::chrono::high_resolution_clock::now() - start_time;
             double seconds = std::chrono::duration<double>(total_time).count();
 
             std::cout << "\n=== Detailed Statistics ===" << std::endl;
             std::cout << "Total frames: " << frame_count << std::endl;
-            std::cout << "Runtime: " << std::fixed << std::setprecision(1) << seconds << " seconds" << std::endl;
+            std::cout << "Runtime: " << std::fixed << std::setprecision(1) << seconds << " seconds"
+                      << std::endl;
             std::cout << "Average FPS: " << monitor.avg_fps() << std::endl;
-            std::cout << "Average tracked: " << std::setprecision(0) << monitor.avg_tracked() << std::endl;
-            std::cout << "Average quality: " << std::setprecision(1) << (monitor.avg_quality() * 100) << "%" << std::endl;
+            std::cout << "Average tracked: " << std::setprecision(0) << monitor.avg_tracked()
+                      << std::endl;
+            std::cout << "Average quality: " << std::setprecision(1)
+                      << (monitor.avg_quality() * 100) << "%" << std::endl;
             std::cout << "Min quality: " << (monitor.min_quality() * 100) << "%" << std::endl;
             std::cout << "Max quality: " << (monitor.max_quality() * 100) << "%" << std::endl;
-            std::cout << "Low quality frames: " << low_quality_frames
-                      << " (" << (100.0 * low_quality_frames / frame_count) << "%)" << std::endl;
+            std::cout << "Low quality frames: " << low_quality_frames << " ("
+                      << (100.0 * low_quality_frames / frame_count) << "%)" << std::endl;
             std::cout << "===========================\n" << std::endl;
         }
         if (key == 'r' || key == 'R') {  // R - reset tracker
@@ -269,13 +279,14 @@ int main() {
 
     std::cout << "\n=== Final Real-World Performance ===" << std::endl;
     std::cout << "Total frames: " << frame_count << std::endl;
-    std::cout << "Total time: " << std::fixed << std::setprecision(2) << seconds << " seconds" << std::endl;
+    std::cout << "Total time: " << std::fixed << std::setprecision(2) << seconds << " seconds"
+              << std::endl;
     std::cout << "Overall FPS: " << std::setprecision(1) << (frame_count / seconds) << std::endl;
     std::cout << "Average tracking quality: " << (monitor.avg_quality() * 100) << "%" << std::endl;
     std::cout << "Min/Max quality: " << (monitor.min_quality() * 100) << "% / "
               << (monitor.max_quality() * 100) << "%" << std::endl;
-    std::cout << "Low quality frames (<70%): " << low_quality_frames
-              << " (" << (100.0 * low_quality_frames / frame_count) << "%)" << std::endl;
+    std::cout << "Low quality frames (<70%): " << low_quality_frames << " ("
+              << (100.0 * low_quality_frames / frame_count) << "%)" << std::endl;
 
     if (monitor.avg_quality() > 0.85) {
         std::cout << "\nExcellent tracking performance!" << std::endl;

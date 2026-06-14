@@ -15,18 +15,20 @@
 
 namespace {
 
-cv::Point2f project(const cv::Matx33d& K, const cv::Matx33d& R, const cv::Vec3d& t,
-                    const cv::Point3f& X) {
-    cv::Vec3d Xc = R * cv::Vec3d(X.x, X.y, X.z) + t;
-    cv::Vec3d px = K * Xc;
-    return cv::Point2f(static_cast<float>(px[0] / px[2]), static_cast<float>(px[1] / px[2]));
-}
+    cv::Point2f project(const cv::Matx33d& K,
+                        const cv::Matx33d& R,
+                        const cv::Vec3d& t,
+                        const cv::Point3f& X) {
+        cv::Vec3d Xc = R * cv::Vec3d(X.x, X.y, X.z) + t;
+        cv::Vec3d px = K * Xc;
+        return cv::Point2f(static_cast<float>(px[0] / px[2]), static_cast<float>(px[1] / px[2]));
+    }
 
-cv::Matx33d rot_y(double deg) {
-    double r = deg * CV_PI / 180.0;
-    double c = std::cos(r), s = std::sin(r);
-    return cv::Matx33d(c, 0, s, 0, 1, 0, -s, 0, c);
-}
+    cv::Matx33d rot_y(double deg) {
+        double r = deg * CV_PI / 180.0;
+        double c = std::cos(r), s = std::sin(r);
+        return cv::Matx33d(c, 0, s, 0, 1, 0, -s, 0, c);
+    }
 
 }  // namespace
 
@@ -82,7 +84,8 @@ int main() {
                            p.z * static_cast<float>(baseline));
         double dx = scaled.x - X.x, dy = scaled.y - X.y, dz = scaled.z - X.z;
         double e = std::sqrt(dx * dx + dy * dy + dz * dz);
-        if (e > max_err) max_err = e;
+        if (e > max_err)
+            max_err = e;
     }
     CHECK(max_err < 0.05);  // < 5cm on a scene a few metres deep
 

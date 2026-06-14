@@ -18,10 +18,12 @@ cd build && ctest --output-on-failure
 ## Coding standards
 
 - **Language:** C++17 (`-DCMAKE_CXX_STANDARD=17`, no compiler extensions).
-- **Style:** formatted with `clang-format` using the repository's
-  [`.clang-format`](.clang-format). Before sending a PR:
+- **Style:** formatted with `clang-format` (pinned to **22.1.5**, the version CI
+  enforces) using the repository's [`.clang-format`](.clang-format). Before
+  sending a PR:
   ```bash
-  clang-format -i $(find src include tests -name '*.cpp' -o -name '*.h')
+  pip install clang-format==22.1.5
+  clang-format -i $(find src include tests -type f \( -name '*.cpp' -o -name '*.h' \))
   ```
 - **Warnings:** the code builds clean under `-Wall -Wextra`. Configure with
   `-DWARNINGS_AS_ERRORS=ON` to enforce this locally.

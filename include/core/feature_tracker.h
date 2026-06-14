@@ -36,4 +36,4 @@ namespace ar_slam {
         void reset();
     };
 
-} // namespace ar_slam
+}  // namespace ar_slam

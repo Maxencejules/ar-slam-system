@@ -8,11 +8,11 @@
 namespace ar_slam {
 
     struct Feature {
-        cv::Point2f pixel;           // 2D pixel coordinates
-        cv::Point2f undistorted;     // Undistorted coordinates
-        cv::Mat descriptor;          // Feature descriptor
-        float response;              // Feature response strength
-        int octave;                  // Scale space octave
+        cv::Point2f pixel;        // 2D pixel coordinates
+        cv::Point2f undistorted;  // Undistorted coordinates
+        cv::Mat descriptor;       // Feature descriptor
+        float response;           // Feature response strength
+        int octave;               // Scale space octave
         bool is_outlier = false;
 
         Feature() = default;
@@ -37,8 +37,8 @@ namespace ar_slam {
         cv::Mat image_rgb_;
 
         // Camera parameters
-        cv::Mat K_;                  // Intrinsic matrix
-        cv::Mat dist_coeffs_;        // Distortion coefficients
+        cv::Mat K_;            // Intrinsic matrix
+        cv::Mat dist_coeffs_;  // Distortion coefficients
 
         // Features
         std::vector<Feature> features_;
@@ -48,7 +48,7 @@ namespace ar_slam {
 
     public:
         explicit Frame(const cv::Mat& image,
-                      const Timestamp& timestamp = std::chrono::steady_clock::now());
+                       const Timestamp& timestamp = std::chrono::steady_clock::now());
 
         // Getters
         uint64_t get_id() const { return id_; }
@@ -62,4 +62,4 @@ namespace ar_slam {
         size_t get_memory_usage() const;
     };
 
-} // namespace ar_slam
+}  // namespace ar_slam

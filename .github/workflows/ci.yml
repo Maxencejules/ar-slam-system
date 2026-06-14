@@ -33,17 +33,18 @@ jobs:
         run: ctest --output-on-failure
 
   format:
-    name: clang-format (advisory)
+    name: clang-format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install clang-format
-        run: sudo apt-get update && sudo apt-get install -y clang-format
+      # Pin the exact clang-format version so results are reproducible and match
+      # what contributors run locally (`pip install clang-format==22.1.5`).
+      - name: Install clang-format (pinned)
+        run: pipx install clang-format==22.1.5
 
       - name: Check formatting
-        # Advisory: surfaces style drift without blocking the build.
-        continue-on-error: true
         run: |
+          clang-format --version
           files=$(find src include tests -type f \( -name '*.cpp' -o -name '*.h' \))
           clang-format --dry-run --Werror $files
