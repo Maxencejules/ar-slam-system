@@ -201,9 +201,10 @@ int main() {
             cv::circle(display, result.curr_points[i], 3, cv::Scalar(0, 255, 0), -1, cv::LINE_AA);
         }
 
-        // Draw UI overlay
-        int overlay_height = 170;
-        int overlay_width = 330;
+        // Draw UI overlay. Clamp to the frame so low-resolution captures (e.g.
+        // 320x240) don't exceed the image bounds when the ROI is extracted.
+        int overlay_width = std::min(330, display.cols);
+        int overlay_height = std::min(170, display.rows);
         cv::Mat overlay = display(cv::Rect(0, 0, overlay_width, overlay_height));
         cv::Mat dimmed;
         double alpha = 0.5;
