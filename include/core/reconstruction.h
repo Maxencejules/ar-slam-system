@@ -46,7 +46,11 @@ public:
         double max_depth = 100.0;       ///< Reject points farther than this (scale units).
     };
 
-    explicit TwoViewReconstruction(const cv::Matx33d& K, Config config = {});
+    /// Construct with default thresholds.
+    explicit TwoViewReconstruction(const cv::Matx33d& K);
+
+    /// Construct with explicit thresholds.
+    TwoViewReconstruction(const cv::Matx33d& K, const Config& config);
 
     /**
      * @brief Reconstruct structure and motion from matched correspondences.

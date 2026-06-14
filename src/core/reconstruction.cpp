@@ -20,7 +20,10 @@ geometry::Mat3 to_geom_mat3(const cv::Matx33d& m) {
 
 }  // namespace
 
-TwoViewReconstruction::TwoViewReconstruction(const cv::Matx33d& K, Config config)
+TwoViewReconstruction::TwoViewReconstruction(const cv::Matx33d& K)
+    : TwoViewReconstruction(K, Config{}) {}
+
+TwoViewReconstruction::TwoViewReconstruction(const cv::Matx33d& K, const Config& config)
     : K_(K), config_(config) {}
 
 ReconstructionResult TwoViewReconstruction::reconstruct(

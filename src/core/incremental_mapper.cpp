@@ -5,7 +5,10 @@
 
 namespace ar_slam {
 
-IncrementalMapper::IncrementalMapper(const cv::Matx33d& K, Config config)
+IncrementalMapper::IncrementalMapper(const cv::Matx33d& K)
+    : IncrementalMapper(K, Config{}) {}
+
+IncrementalMapper::IncrementalMapper(const cv::Matx33d& K, const Config& config)
     : K_(K), config_(config), reconstructor_(K) {}
 
 void IncrementalMapper::set_reference(const std::vector<int>& ids,

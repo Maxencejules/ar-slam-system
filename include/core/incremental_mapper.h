@@ -33,7 +33,11 @@ public:
                                           ///< even if reconstruction failed (e.g. pure rotation).
     };
 
-    explicit IncrementalMapper(const cv::Matx33d& K, Config config = {});
+    /// Construct with default thresholds.
+    explicit IncrementalMapper(const cv::Matx33d& K);
+
+    /// Construct with explicit thresholds.
+    IncrementalMapper(const cv::Matx33d& K, const Config& config);
 
     /**
      * @brief Feed the current frame's tracks.
