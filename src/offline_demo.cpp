@@ -1,4 +1,8 @@
 // Deterministic synthetic experiment, not a recording of a real SLAM run.
+#include <cmath>
+#include <memory>
+#include <string>
+#include <vector>
 #include <algorithm>
 #include <chrono>
 #include <filesystem>

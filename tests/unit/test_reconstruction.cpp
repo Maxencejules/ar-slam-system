@@ -1,3 +1,6 @@
+#include <cstdint>
+#include <iostream>
+#include <vector>
 #include <cmath>
 #include <limits>
 #include <stdexcept>

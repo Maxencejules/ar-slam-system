@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 #include <opencv2/opencv.hpp>
 #include <memory>
 #include <vector>
