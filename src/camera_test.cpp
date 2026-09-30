@@ -1,3 +1,8 @@
+#include <algorithm>
+#include <memory>
+#include <sstream>
+#include <string>
+#include <vector>
 #include <iostream>
 #include <opencv2/opencv.hpp>
 #include <thread>
@@ -101,7 +106,6 @@ int main() {
     int frame_count = 0;
     int low_quality_frames = 0;
     auto start_time = std::chrono::high_resolution_clock::now();
-    auto last_frame_time = start_time;
 
     std::cout << "Controls:" << std::endl;
     std::cout << "  Arrow Keys: Rotate/zoom 3D view" << std::endl;
@@ -198,7 +202,7 @@ int main() {
             cv::circle(display, result.curr_points[i], 3, color, -1);
 
             // Draw motion vectors
-            if (i < result.prev_points.size()) {
+            if (result.inliers[i]) {
                 cv::line(display, result.prev_points[i], result.curr_points[i],
                          cv::Scalar(0, 100, 0), 1);
             }

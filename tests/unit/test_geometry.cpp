@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <vector>
 
 #include "core/geometry.h"
@@ -107,6 +108,36 @@ namespace {
         CHECK(reconstruct_max_error(rot_y(10.0), {-0.7, 0.0, 0.05}, 0.5) < 0.1);
     }
 
+    void test_nonfinite_and_projection_scaling() {
+        auto K = default_intrinsics();
+        auto P1 = make_projection(K, Mat3::identity(), {0, 0, 0});
+        auto P2 = make_projection(K, Mat3::identity(), {-0.6, 0, 0});
+        const Vec3 truth{0.2, -0.3, 5.0};
+        // Analytic pinhole pixels, independent of geometry::project.
+        const double u1 = 525 * truth[0] / truth[2] + 320;
+        const double v = 525 * truth[1] / truth[2] + 240;
+        const double u2 = 525 * (truth[0] - 0.6) / truth[2] + 320;
+        for (double invalid :
+             {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::infinity()}) {
+            CHECK(!triangulate(P1, P2, invalid, v, u2, v).valid);
+            auto bad = P2;
+            bad.m[0][0] = invalid;
+            CHECK(!triangulate(P1, bad, u1, v, u2, v).valid);
+        }
+        for (double scale : {1e-150, 1e150}) {
+            auto scaled = P2;
+            for (auto& row : scaled.m) {
+                for (double& value : row)
+                    value *= scale;
+            }
+            auto point = triangulate(P1, scaled, u1, v, u2, v);
+            CHECK(point.valid);
+            for (int axis = 0; axis < 3; ++axis)
+                CHECK_NEAR(point.point[axis], truth[axis], 1e-6);
+        }
+        CHECK(!triangulate(Mat34{}, P2, u1, v, u2, v).valid);
+    }
+
     void test_projection_roundtrip() {
         Mat3 K = default_intrinsics();
         Mat34 P = make_projection(K, Mat3::identity(), {0, 0, 0});
@@ -122,6 +153,7 @@ namespace {
 int main() {
     test_eigensolver();
     test_triangulation();
+    test_nonfinite_and_projection_scaling();
     test_projection_roundtrip();
     return artest::report("test_geometry");
 }

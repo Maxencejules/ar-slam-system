@@ -1,0 +1,23 @@
+{
+  "provenance": "Generated synthetic experiments; no real camera measurements",
+  "seed": 2026,
+  "points": 240,
+  "noise_uniform_half_width_px": 0.15,
+  "mismatch_stride": 7,
+  "known_baseline_scene_units": 0.60166435825965292,
+  "opencv": "4.14.0",
+  "compiler_msvc_full_version": 194435228,
+  "opencv_threads": 1,
+  "opencl": false,
+  "tracker_initial_observations": 500,
+  "tracker_temporal_correspondences": 500,
+  "tracker_retention": 1,
+  "tracker_median_warp_error_px": 0.00109905656427145,
+  "cloud_reference_update": 1,
+  "cloud_current_update": 2,
+  "calibration": [525,510,320,240],
+  "known_rotation_y_deg": 5,
+  "known_translation_scene_units": [-0.59999999999999998,0.02,0.040000000000000001],
+  "estimated_rotation_row_major": [0.99629000949418467,-6.5855254752320014e-05,0.086059355361070788,-7.4326645865985252e-05,0.99999867579858726,0.0016256926591560823,-0.08605934846155508,-0.0016260578580545434,0.99628868531074621],
+  "estimated_translation_baseline_units": [-0.99933445459678949,0.028894806567694848,0.022265174806241638]
+}

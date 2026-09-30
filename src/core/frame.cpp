@@ -1,6 +1,7 @@
 #include "core/frame.h"
 #include "core/log.h"
 #include <opencv2/features2d.hpp>
+#include <stdexcept>
 
 namespace ar_slam {
 
@@ -11,7 +12,14 @@ namespace ar_slam {
 
     Frame::Frame(const cv::Mat& image, const Timestamp& timestamp)
         : id_(next_id_++), timestamp_(timestamp) {
-        if (image.channels() == 3) {
+        if (image.empty() || image.dims != 2 || image.depth() != CV_8U ||
+            (image.channels() != 1 && image.channels() != 3 && image.channels() != 4)) {
+            throw std::invalid_argument("Frame requires a nonempty 8-bit gray/BGR/BGRA image");
+        }
+        if (image.channels() == 4) {
+            cv::cvtColor(image, image_gray_, cv::COLOR_BGRA2GRAY);
+            cv::cvtColor(image, image_rgb_, cv::COLOR_BGRA2BGR);
+        } else if (image.channels() == 3) {
             cv::cvtColor(image, image_gray_, cv::COLOR_BGR2GRAY);
             image_rgb_ = image.clone();
         } else {
@@ -21,7 +29,10 @@ namespace ar_slam {
     }
 
     void Frame::extract_features(int max_features) {
-        auto start = std::chrono::high_resolution_clock::now();
+        if (max_features <= 0) {
+            throw std::invalid_argument("Feature count must be positive");
+        }
+        auto start = std::chrono::steady_clock::now();
 
         // Use ORB for efficiency
         auto orb = cv::ORB::create(max_features,  // nfeatures
@@ -42,10 +53,10 @@ namespace ar_slam {
         features_.reserve(keypoints_.size());
 
         for (size_t i = 0; i < keypoints_.size(); ++i) {
-            features_.emplace_back(keypoints_[i], descriptors_.row(i));
+            features_.emplace_back(keypoints_[i], descriptors_.row(static_cast<int>(i)));
         }
 
-        auto end = std::chrono::high_resolution_clock::now();
+        auto end = std::chrono::steady_clock::now();
         extraction_time_ms_ = std::chrono::duration<double, std::milli>(end - start).count();
 
         AR_LOG("Extracted " << features_.size() << " features in " << extraction_time_ms_ << " ms");
@@ -56,7 +67,11 @@ namespace ar_slam {
         total += image_gray_.total() * image_gray_.elemSize();
         total += image_rgb_.total() * image_rgb_.elemSize();
         total += descriptors_.total() * descriptors_.elemSize();
-        total += features_.size() * sizeof(Feature);
+        total += keypoints_.capacity() * sizeof(cv::KeyPoint);
+        total += features_.capacity() * sizeof(Feature);
+        for (const auto& feature : features_) {
+            total += feature.descriptor.total() * feature.descriptor.elemSize();
+        }
         return total;
     }
 

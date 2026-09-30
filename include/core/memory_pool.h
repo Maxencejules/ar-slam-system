@@ -22,6 +22,13 @@ namespace ar_slam {
      * or destruct objects. Use create()/destroy() for the common case where you
      * want construction and destruction handled for you.
      *
+     * Callers must destroy live objects before pool destruction or replacement
+     * by move assignment. Only return an allocated slot to its owning pool,
+     * exactly once. owns() checks slot identity, not allocation state. This raw
+     * storage pool is not thread-safe; T constructors/destructors may allocate.
+     * The byte budget covers the slab, excluding this pool object and allocator
+     * bookkeeping. A budget smaller than one slot yields zero capacity.
+     *
      * The type is non-copyable (it owns a unique slab) but movable.
      *
      * @tparam T Object type stored in the pool.
@@ -37,7 +44,7 @@ namespace ar_slam {
         explicit MemoryPool(std::size_t max_bytes = 256ull * 1024 * 1024)
             : capacity_(max_bytes / kSlotSize) {
             if (capacity_ == 0) {
-                capacity_ = 1;  // Always provide room for at least one object.
+                return;  // A byte budget smaller than one slot reserves no storage.
             }
             slots_ = static_cast<Slot*>(
                 ::operator new(capacity_ * sizeof(Slot), std::align_val_t{kAlign}));
@@ -159,20 +166,33 @@ namespace ar_slam {
         /// Total bytes reserved by the backing slab.
         std::size_t capacity_bytes() const noexcept { return capacity_ * sizeof(Slot); }
 
-        /// True if @p ptr points into this pool's slab.
+        /// True if @p ptr is exactly the start of one slot in this pool's slab.
         bool owns(const T* ptr) const noexcept {
-            const auto* p = reinterpret_cast<const Slot*>(ptr);
-            return p >= slots_ && p < slots_ + capacity_;
+            if (ptr == nullptr || slots_ == nullptr) {
+                return false;
+            }
+            const auto address = reinterpret_cast<std::uintptr_t>(ptr);
+            const auto base = reinterpret_cast<std::uintptr_t>(slots_);
+            return address >= base && address - base < capacity_bytes() &&
+                   (address - base) % sizeof(Slot) == 0;
         }
 
     private:
         // A slot is either live object storage or, when free, a free-list node.
         // The union sizes/aligns to satisfy both roles.
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable \
+                : 4324)  // Intentional slot padding for over-aligned T; budget uses sizeof(Slot).
+#endif
         union Slot {
             Slot* next;
             alignas(T) unsigned char storage[sizeof(T)];
         };
 
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
         static constexpr std::size_t kSlotSize = sizeof(Slot);
         static constexpr std::size_t kAlign = alignof(T) > alignof(Slot*) ? alignof(T)
                                                                           : alignof(Slot*);

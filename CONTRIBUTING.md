@@ -1,51 +1,31 @@
 # Contributing
 
-Thanks for your interest in the project. This is a personal portfolio project, but
-issues and pull requests that improve correctness, clarity, or test coverage are
-welcome.
+Use the [README](README.md) build instructions. Keep changes scoped to the visual
+frontend/two-view prototype, and describe coordinate frames, scale, calibration
+and temporal assumptions when changing a contract.
 
-## Development setup
-
-See [README.md](README.md#building) for dependencies and build instructions. In
-short:
-
-```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
-cmake --build build --parallel
-cd build && ctest --output-on-failure
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel 2
+ctest --test-dir build --output-on-failure
 ```
 
-## Coding standards
+C++17 is required. Warnings are errors by default. Keep `geometry.h` and pool
+tests standard-library-only. Format C++ sources with the exact version CI uses:
 
-- **Language:** C++17 (`-DCMAKE_CXX_STANDARD=17`, no compiler extensions).
-- **Style:** formatted with `clang-format` (pinned to **22.1.5**, the version CI
-  enforces) using the repository's [`.clang-format`](.clang-format). Before
-  sending a PR:
-  ```bash
-  pip install clang-format==22.1.5
-  clang-format -i $(find src include tests -type f \( -name '*.cpp' -o -name '*.h' \))
-  ```
-- **Warnings:** the code builds clean under `-Wall -Wextra`. Configure with
-  `-DWARNINGS_AS_ERRORS=ON` to enforce this locally.
-- Keep the **geometry core (`include/core/geometry.h`) dependency-free** so it
-  remains unit-testable in isolation.
+```sh
+python -m venv build/format-env
+build/format-env/bin/python -m pip install clang-format==22.1.5
+build/format-env/bin/clang-format -i $(find src include tests -type f \( -name '*.cpp' -o -name '*.h' \))
+```
 
-## Tests
+Add meaningful regression cases for changed behavior. Geometry assertions should
+use independent truth/reference calculations, not only an implementation's own
+residuals. Statistical or performance claims need workload, raw trials, compiler,
+environment and limitations. Do not label generated synthetic data as real
+measurements. Recorded demo updates must come from an actual passing executable;
+retain compiler/OpenCV provenance and verify CSV column alignment.
 
-Every behavioral change should come with a test. Tests are headless and
-deterministic (synthetic data, fixed seeds) so they run in CI without a camera.
-
-- Pure-C++ logic → add to `tests/unit/test_geometry.cpp` /
-  `tests/unit/test_memory_pool.cpp` (no third-party deps).
-- OpenCV-backed pipeline → add to `tests/unit/test_reconstruction.cpp` /
-  `tests/unit/test_tracking.cpp`.
-
-Register new test executables in [`tests/CMakeLists.txt`](tests/CMakeLists.txt) with
-`add_test(...)` so CTest and CI pick them up.
-
-## Pull requests
-
-1. Branch from `main`.
-2. Keep changes focused; describe the motivation in the PR body.
-3. Ensure `ctest` passes and the build is warning-clean.
-4. CI (build + tests on Ubuntu) must be green.
+CI compiles viewers on Ubuntu Release and runs bounded headless tests, with a
+separate Clang sanitizer job and pinned formatting. Green compilation does not
+establish webcam compatibility or real-time behavior.

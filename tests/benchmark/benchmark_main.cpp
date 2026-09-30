@@ -194,7 +194,6 @@ void benchmark_tracking() {
     std::cout << "  Average: " << (avg_quality * 100) << "%" << std::endl;
     std::cout << "  Min:     " << (*minmax_quality.first * 100) << "%" << std::endl;
     std::cout << "  Max:     " << (*minmax_quality.second * 100) << "%" << std::endl;
-    std::cout << "  Note: Realistic tracking quality is typically 60-85%" << std::endl;
     std::cout << std::endl;
 }
 
@@ -335,7 +334,7 @@ int main() {
     std::cout << "=====================================" << std::endl;
     std::cout << "        Benchmark Complete" << std::endl;
     std::cout << "=====================================" << std::endl;
-    std::cout << "\nNote: These benchmarks use realistic conditions including:" << std::endl;
+    std::cout << "\nNote: These exploratory synthetic workloads include:" << std::endl;
     std::cout << "- Gaussian noise and motion blur" << std::endl;
     std::cout << "- Lighting variations" << std::endl;
     std::cout << "- Rotation and scale changes" << std::endl;
