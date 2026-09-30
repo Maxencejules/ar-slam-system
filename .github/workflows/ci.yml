@@ -6,44 +6,72 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
-  build-and-test:
-    name: Build & test (Ubuntu)
+  native:
+    name: Ubuntu ${{ matrix.name }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Release + viewer compile
+            build_type: Release
+            compiler: g++
+            viewers: ON
+            sanitizers: OFF
+          - name: Clang ASan + UBSan headless
+            build_type: Debug
+            compiler: clang++
+            viewers: OFF
+            sanitizers: ON
+    env:
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install dependencies
+      - name: Install native dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential cmake \
-            libopencv-dev \
-            libgl1-mesa-dev libglew-dev libglfw3-dev libglm-dev \
-            libeigen3-dev
-
+            build-essential clang cmake libopencv-dev \
+            libgl1-mesa-dev libglew-dev libglfw3-dev libglm-dev
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON -DBUILD_BENCHMARKS=ON
-
-      - name: Build
-        run: cmake --build build --parallel
-
-      - name: Run tests
-        working-directory: build
-        run: ctest --output-on-failure
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} \
+            -DBUILD_VIEWERS=${{ matrix.viewers }} \
+            -DENABLE_SANITIZERS=${{ matrix.sanitizers }} \
+            -DBUILD_TESTS=ON -DBUILD_BENCHMARKS=OFF -DWARNINGS_AS_ERRORS=ON
+      - name: Build (no camera/display invocation)
+        run: cmake --build build --parallel 2
+      - name: Headless regression tests and offline proof
+        run: ctest --test-dir build --output-on-failure
+      - name: Independently audit exported CSV/PLY/pose metrics
+        run: python3 scripts/verify_demo.py build/demo-proof
+      - name: Upload generated synthetic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-proof-${{ strategy.job-index }}
+          path: |
+            build/demo-proof/
+            build/Testing/Temporary/LastTest.log
+          if-no-files-found: warn
 
   format:
-    name: clang-format
+    name: clang-format 22.1.5
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-
-      # Pin the exact clang-format version so results are reproducible and match
-      # what contributors run locally (`pip install clang-format==22.1.5`).
-      - name: Install clang-format (pinned)
+      - name: Install pinned formatter
         run: pipx install clang-format==22.1.5
-
-      - name: Check formatting
+      - name: Check C++ formatting
         run: |
           clang-format --version
           files=$(find src include tests -type f \( -name '*.cpp' -o -name '*.h' \))

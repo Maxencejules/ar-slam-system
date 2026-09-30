@@ -1,15 +1,11 @@
-// Unit tests for the fixed-capacity object pool.
-// Verifies capacity derivation, O(1) reuse from a real slab, enforced
-// exhaustion, correct construction/destruction, and move semantics.
-
+#include <cstdint>
+#include <stdexcept>
 #include <utility>
 #include <vector>
-
 #include "core/memory_pool.h"
 #include "test_util.h"
 
 namespace {
-
     struct Tracked {
         static int live;
         int value;
@@ -17,96 +13,103 @@ namespace {
         ~Tracked() { --live; }
     };
     int Tracked::live = 0;
-
-    std::size_t budget_for(std::size_t objects) {
-        // Slot size is at least sizeof(void*); size the budget to that.
-        std::size_t slot = sizeof(Tracked) > sizeof(void*) ? sizeof(Tracked) : sizeof(void*);
-        return slot * objects;
+    struct alignas(128) Aligned {
+        int value = 0;
+        unsigned char padding[124]{};
+    };
+    struct Throwing {
+        explicit Throwing(bool fail) {
+            if (fail)
+                throw std::runtime_error("intentional constructor failure");
+        }
+    };
+    std::size_t budget_for(std::size_t count) {
+        return count * (sizeof(Tracked) > sizeof(void*) ? sizeof(Tracked) : sizeof(void*));
     }
-
-    void test_capacity_and_exhaustion() {
-        ar_slam::MemoryPool<Tracked> pool(budget_for(4));
+    void test_budget_and_reuse() {
+        for (std::size_t budget : {std::size_t{0}, std::size_t{1}, sizeof(void*) - 1}) {
+            ar_slam::MemoryPool<Tracked> empty(budget);
+            CHECK(empty.capacity() == 0);
+            CHECK(empty.capacity_bytes() <= budget);
+            CHECK(empty.allocate() == nullptr);
+            CHECK(empty.create(1) == nullptr);
+            CHECK(empty.full());
+            CHECK(!empty.owns(nullptr));
+        }
+        ar_slam::MemoryPool<Tracked> pool(budget_for(4) + 1);
         CHECK(pool.capacity() == 4);
+        CHECK(pool.capacity_bytes() <= budget_for(4) + 1);
+        std::vector<Tracked*> objects;
+        for (int i = 0; i < 4; ++i) {
+            auto* object = pool.create(i);
+            CHECK(object != nullptr);
+            CHECK(pool.owns(object));
+            CHECK(object->value == i);
+            objects.push_back(object);
+        }
+        CHECK(pool.full());
+        CHECK(pool.allocate() == nullptr);
+        CHECK(pool.create(9) == nullptr);
+        CHECK(pool.get_usage() == 4 * sizeof(Tracked));
+        auto* reclaimed = objects[1];
+        pool.destroy(reclaimed);
+        auto* reused = pool.create(42);
+        CHECK(reused == reclaimed);
+        CHECK(reused->value == 42);
+        objects[1] = reused;
+        for (auto* object : objects)
+            pool.destroy(object);
+        CHECK(Tracked::live == 0);
         CHECK(pool.used() == 0);
         CHECK(pool.available() == 4);
-        CHECK(!pool.full());
-
-        std::vector<Tracked*> objs;
-        for (int i = 0; i < 4; ++i) {
-            Tracked* t = pool.create(i * 10);
-            CHECK(t != nullptr);
-            CHECK(pool.owns(t));
-            CHECK(t->value == i * 10);
-            objs.push_back(t);
+        pool.deallocate(nullptr);
+        Tracked foreign(0);
+        CHECK(!pool.owns(&foreign));
+        auto* raw = pool.allocate();
+        auto* interior = reinterpret_cast<Tracked*>(reinterpret_cast<std::uintptr_t>(raw) + 1);
+        CHECK(!pool.owns(interior));
+        pool.deallocate(raw);
+    }
+    void test_alignment_and_constructor_rollback() {
+        ar_slam::MemoryPool<Aligned> aligned(3 * sizeof(Aligned));
+        CHECK(aligned.capacity() == 3);
+        for (int i = 0; i < 3; ++i) {
+            auto* value = aligned.create();
+            CHECK(reinterpret_cast<std::uintptr_t>(value) % alignof(Aligned) == 0);
+            aligned.destroy(value);
         }
+        ar_slam::MemoryPool<Throwing> pool(sizeof(void*));
+        CHECK(artest::throws<std::runtime_error>([&] { pool.create(true); }));
+        CHECK(pool.used() == 0);
+        auto* value = pool.create(false);
+        CHECK(value != nullptr);
         CHECK(pool.full());
-        CHECK(Tracked::live == 4);
-
-        // Exhaustion returns nullptr rather than growing the heap.
-        CHECK(pool.create(99) == nullptr);
-        CHECK(pool.allocate() == nullptr);
-
-        // get_usage reflects only live objects.
-        CHECK(pool.get_usage() == 4 * sizeof(Tracked));
-
-        for (Tracked* t : objs) {
-            pool.destroy(t);
-        }
-        CHECK(Tracked::live == 0);
+        pool.destroy(value);
         CHECK(pool.used() == 0);
     }
-
-    void test_reuse() {
-        ar_slam::MemoryPool<Tracked> pool(budget_for(3));
-        Tracked* a = pool.create(1);
-        Tracked* b = pool.create(2);
-        Tracked* c = pool.create(3);
-        CHECK(pool.full());
-
-        pool.destroy(b);
-        CHECK(pool.available() == 1);
-        CHECK(Tracked::live == 2);
-
-        Tracked* d = pool.create(42);
-        CHECK(d != nullptr);
-        CHECK(d->value == 42);
-        CHECK(pool.full());
-
-        pool.destroy(a);
-        pool.destroy(c);
-        pool.destroy(d);
-        CHECK(Tracked::live == 0);
-    }
-
     void test_move() {
-        ar_slam::MemoryPool<Tracked> src(budget_for(2));
-        Tracked* x = src.create(7);
-        CHECK(x != nullptr);
-
-        ar_slam::MemoryPool<Tracked> dst(std::move(src));
-        CHECK(dst.owns(x));
-        CHECK(x->value == 7);
-
-        dst.destroy(x);
+        ar_slam::MemoryPool<Tracked> source(budget_for(2));
+        auto* value = source.create(7);
+        ar_slam::MemoryPool<Tracked> target(std::move(source));
+        CHECK(target.owns(value));
+        CHECK(!source.owns(value));
+        CHECK(source.capacity() == 0);
+        CHECK(source.allocate() == nullptr);
+        CHECK(value->value == 7);
+        ar_slam::MemoryPool<Tracked> assigned(0);
+        assigned = std::move(target);
+        CHECK(assigned.owns(value));
+        CHECK(target.capacity() == 0);
+        assigned.destroy(value);
         CHECK(Tracked::live == 0);
+        auto* alias = &assigned;
+        assigned = std::move(*alias);
+        CHECK(assigned.capacity() == 2);
     }
-
-    void test_minimum_capacity() {
-        // A tiny budget still yields room for at least one object.
-        ar_slam::MemoryPool<Tracked> pool(1);
-        CHECK(pool.capacity() >= 1);
-        Tracked* t = pool.create(5);
-        CHECK(t != nullptr);
-        pool.destroy(t);
-        CHECK(Tracked::live == 0);
-    }
-
 }  // namespace
-
 int main() {
-    test_capacity_and_exhaustion();
-    test_reuse();
+    test_budget_and_reuse();
+    test_alignment_and_constructor_rollback();
     test_move();
-    test_minimum_capacity();
     return artest::report("test_memory_pool");
 }

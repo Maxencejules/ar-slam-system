@@ -33,3 +33,6 @@ Thumbs.db
 # Test/recording artifacts
 test_video.mp4
 *.log
+
+# Fresh offline demo output; examples/offline is the recorded reference
+artifacts/

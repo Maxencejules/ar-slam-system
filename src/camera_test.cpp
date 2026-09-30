@@ -198,7 +198,7 @@ int main() {
             cv::circle(display, result.curr_points[i], 3, color, -1);
 
             // Draw motion vectors
-            if (i < result.prev_points.size()) {
+            if (result.inliers[i]) {
                 cv::line(display, result.prev_points[i], result.curr_points[i],
                          cv::Scalar(0, 100, 0), 1);
             }

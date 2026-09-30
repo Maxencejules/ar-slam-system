@@ -126,9 +126,8 @@ int main() {
             mapper = std::make_unique<ar_slam::IncrementalMapper>(default_intrinsics(frame.size()));
         }
 
-        // Feed the tracks to the mapper. Once it has triangulated real structure
-        // from a wide-enough baseline, show that; until then show the live
-        // features on a frontal plane (an honest 2D projection, not fake depth).
+        // Show the latest estimated pair-local cloud using guessed intrinsics.
+        // The fallback plane contains 2D observations, not measured depth.
         mapper->update(result.track_ids, result.curr_points);
 
         std::vector<cv::Point3f> points_3d;
@@ -228,13 +227,12 @@ int main() {
         cv::putText(display, "3D Points: " + std::to_string(points_3d.size()), cv::Point(10, 120),
                     cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
 
-        // Mapping status: shows whether we are triangulating real structure or
-        // still gathering baseline.
+        // Label the pair-local estimate, cached geometry, or fallback plane.
         std::string map_status =
-            mapper->has_cloud()
-                ? "Map: " + std::to_string(mapper->cloud().size()) + " pts (triangulated)"
-                : "Map: gathering baseline (" + std::to_string((int)mapper->last_parallax()) +
-                      "px)";
+            mapper->has_cloud() ? "Pair cloud: " + std::to_string(mapper->cloud().size()) +
+                                      (mapper->cloud_is_stale() ? " pts (cached)" : " pts (new)")
+                                : "2D plane: waiting for motion (" +
+                                      std::to_string((int)mapper->last_parallax()) + "px)";
         cv::putText(display, map_status, cv::Point(10, 150), cv::FONT_HERSHEY_SIMPLEX, 0.55,
                     cv::Scalar(0, 220, 255), 1, cv::LINE_AA);
 

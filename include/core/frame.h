@@ -53,6 +53,7 @@ namespace ar_slam {
         // Getters
         uint64_t get_id() const { return id_; }
         const cv::Mat& get_image() const { return image_gray_; }
+        Timestamp get_timestamp() const { return timestamp_; }
         const std::vector<Feature>& get_features() const { return features_; }
 
         // Feature extraction

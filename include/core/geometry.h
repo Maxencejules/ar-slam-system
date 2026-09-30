@@ -177,6 +177,17 @@ namespace ar_slam::geometry {
      */
     inline TriangulationResult triangulate(
         const Mat34& P1, const Mat34& P2, double u1, double v1, double u2, double v2) {
+        TriangulationResult result;
+        if (!std::isfinite(u1) || !std::isfinite(v1) || !std::isfinite(u2) || !std::isfinite(v2)) {
+            return result;
+        }
+        for (int i = 0; i < 3; ++i) {
+            for (int j = 0; j < 4; ++j) {
+                if (!std::isfinite(P1.m[i][j]) || !std::isfinite(P2.m[i][j])) {
+                    return result;
+                }
+            }
+        }
         double A[4][4];
         for (int j = 0; j < 4; ++j) {
             A[0][j] = u1 * P1.m[2][j] - P1.m[0][j];
@@ -189,10 +200,15 @@ namespace ar_slam::geometry {
         for (int i = 0; i < 4; ++i) {
             double norm = 0.0;
             for (int j = 0; j < 4; ++j) {
-                norm += A[i][j] * A[i][j];
+                if (!std::isfinite(A[i][j])) {
+                    return result;
+                }
+                norm = std::hypot(norm, A[i][j]);
             }
-            norm = std::sqrt(norm);
-            if (norm > 1e-12) {
+            if (norm == 0.0 || !std::isfinite(norm)) {
+                return result;
+            }
+            if (norm > 0.0) {
                 for (int j = 0; j < 4; ++j) {
                     A[i][j] /= norm;
                 }
@@ -224,13 +240,13 @@ namespace ar_slam::geometry {
             X[i] = eig.vectors[i][smallest];
         }
 
-        TriangulationResult result;
-        if (std::fabs(X[3]) < 1e-9) {
+        if (!std::isfinite(X[3]) || std::fabs(X[3]) < 1e-9) {
             result.valid = false;  // Point at infinity.
             return result;
         }
         result.point = {X[0] / X[3], X[1] / X[3], X[2] / X[3]};
-        result.valid = true;
+        result.valid = std::isfinite(result.point[0]) && std::isfinite(result.point[1]) &&
+                       std::isfinite(result.point[2]);
         return result;
     }
 
