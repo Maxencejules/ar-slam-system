@@ -59,11 +59,20 @@ namespace ar_slam {
         if (pts1.size() != pts2.size() ||
             pts1.size() < static_cast<std::size_t>(config_.min_correspondences))
             return {};
+        std::vector<double> displacements;
+        displacements.reserve(pts1.size());
         for (std::size_t i = 0; i < pts1.size(); ++i) {
             if (!std::isfinite(pts1[i].x) || !std::isfinite(pts1[i].y) ||
                 !std::isfinite(pts2[i].x) || !std::isfinite(pts2[i].y))
                 return {};
+            displacements.push_back(std::hypot(static_cast<double>(pts2[i].x) - pts1[i].x,
+                                               static_cast<double>(pts2[i].y) - pts1[i].y));
         }
+        // An estimated R can fabricate ray separation on stationary/degenerate
+        // pixels. Require observed motion above the configured measurement scale
+        // before fitting; the median prevents minority outliers from opening this gate.
+        if (median(displacements) <= config_.ransac_threshold)
+            return {};
         cv::Mat R, t, mask;
         int model_inliers = 0;
         try {

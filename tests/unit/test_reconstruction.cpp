@@ -97,8 +97,24 @@ namespace {
         CHECK(!recon.reconstruct(scene.first, scene.first).success);
         std::vector<cv::Point2f> identical(100, {320, 240});
         CHECK(!recon.reconstruct(identical, identical).success);
+        auto nearly_identical = identical;
+        for (auto& point : nearly_identical)
+            point += cv::Point2f(0.15f, -0.15f);
+        CHECK(!recon.reconstruct(identical, nearly_identical).success);
+        auto stationary_noise = scene.first;
+        for (std::size_t i = 0; i < stationary_noise.size(); ++i) {
+            // Deterministic bounded observation noise, without camera motion.
+            stationary_noise[i].x += static_cast<float>(static_cast<int>(i % 7) - 3) * 0.05f;
+            stationary_noise[i].y += static_cast<float>(static_cast<int>(i % 5) - 2) * 0.075f;
+        }
+        CHECK(!recon.reconstruct(scene.first, stationary_noise).success);
+        // Large displaced outliers must not make a stationary majority observable.
+        auto stationary_majority = stationary_noise;
+        for (std::size_t i = 0; i < stationary_majority.size(); i += 5)
+            stationary_majority[i] = scene.second[(i + 37) % scene.second.size()];
+        CHECK(!recon.reconstruct(scene.first, stationary_majority).success);
         auto config = ar_slam::TwoViewReconstruction::Config{};
-        config.max_depth = 1e6;  // Isolate the angle gate from the depth threshold.
+        config.max_depth = 1e6;  // Relax depth while testing rotation/weak-baseline rejection.
         ar_slam::TwoViewReconstruction low_parallax(scene.K, config);
         std::vector<cv::Point2f> rotation_only, tiny_translation;
         for (const auto& point : scene.world) {

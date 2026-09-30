@@ -116,6 +116,11 @@ reference run.
   by the previous count, before top-up. Initialization has quality zero.
 - **Reconstruction:** matched pixels must already be undistorted and use a known,
   positive-focal, zero-skew pinhole calibration at the same image resolution.
+  Before model fitting, median observed pixel displacement must exceed the
+  configured RANSAC pixel threshold (default 1 px). This conservative gate rejects
+  stationary noise and a stationary majority with moving outliers before an
+  arbitrary estimated rotation can fabricate ray separation. It may also skip
+  valid motion with very small or cancelled image displacement.
   RANSAC's five-point model is refined from its consensus with calibrated
   eight-point fitting and essential singular values (s,s,0) when at least eight
   inliers exist. Pose recovery and custom DLT then require positive depth in both

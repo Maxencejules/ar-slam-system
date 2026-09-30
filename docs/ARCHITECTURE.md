@@ -30,7 +30,11 @@ not been attempted. Pair indices count accepted mapper updates, not timestamps.
 
 `TwoViewReconstruction` validates pinhole calibration and thresholds at
 construction. Invalid observations/failed model estimation return an empty,
-unsuccessful result. Five-point essential RANSAC supplies a consensus. When eight
+unsuccessful result. Before fitting, median observed pixel displacement must
+exceed the RANSAC pixel threshold (default 1 px). This conservative measurement
+scale gate rejects stationary noise despite minority moving outliers; it can
+reject valid motion whose image displacement is small or cancelled by rotation.
+It is not a general degeneracy classifier. Five-point essential RANSAC supplies a consensus. When eight
 or more points are available, a normalized calibrated eight-point fit and
 (s,s,0) SVD projection refine the minimal model from that consensus. Recovery
 then checks cheirality; custom row-normalized DLT checks finite results, both-view

@@ -22,7 +22,8 @@ namespace ar_slam {
     public:
         struct Config {
             double ransac_prob = 0.999;
-            double ransac_threshold = 1.0;  // Pixel epipolar threshold.
+            double ransac_threshold =
+                1.0;  // Pixel epipolar threshold AND median observed-motion floor.
             int min_correspondences = 30;
             int min_inliers = 15;
             double min_inlier_ratio = 0.5;
